@@ -91,11 +91,6 @@ export default function LoginPage() {
     setKnownName(undefined);
   };
 
-  const quickSelectDemo = async (demoEmail: string) => {
-    setEmail(demoEmail);
-    await checkAndAdvance(demoEmail);
-  };
-
   return (
     <div
       className="auth-screen"
@@ -112,9 +107,9 @@ export default function LoginPage() {
             </div>
             <div style={{ textAlign: "left" }}>
               <div className="logo-text" style={{ fontSize: 18 }}>
-                TechSters Kanban
+                TechSters ERP
               </div>
-              <div className="logo-sub">AVISHKAR&apos;26 · Enterprise Workspace</div>
+              <div className="logo-sub">Enterprise Resource Planning Platform</div>
             </div>
           </div>
         </div>
@@ -127,7 +122,7 @@ export default function LoginPage() {
                 Sign in or create account
               </div>
               <div style={{ fontSize: 12.5, color: "var(--text-secondary)", marginBottom: 14 }}>
-                Enter your work email. New users set up an account once; returning users log in directly with password.
+                Enter your work email. New users set up an account instantly — no invite or approval needed.
               </div>
               <label className="field-label">Work Email</label>
               <input
@@ -250,20 +245,6 @@ export default function LoginPage() {
           </form>
         )}
 
-        <div className="auth-hint-box">
-          <div className="auth-hint-title">Quick Demo Accounts (pw: password123)</div>
-          <div style={{ display: "flex", gap: 6, flexWrap: "wrap" }}>
-            <button type="button" className="btn btn-secondary btn-sm" onClick={() => quickSelectDemo("alice@techsters.dev")}>
-              Admin
-            </button>
-            <button type="button" className="btn btn-secondary btn-sm" onClick={() => quickSelectDemo("bob@techsters.dev")}>
-              Member
-            </button>
-            <button type="button" className="btn btn-secondary btn-sm" onClick={() => quickSelectDemo("carol@techsters.dev")}>
-              Viewer
-            </button>
-          </div>
-        </div>
       </div>
     </div>
   );

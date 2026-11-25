@@ -5,57 +5,74 @@ interface HomePageProps {
 const features = [
   {
     icon: "⚡",
-    title: "Real-Time Sync",
-    desc: "Every task move, comment, and update propagates instantly to all teammates via Socket.IO — no refresh needed.",
+    title: "Real-Time Collaboration",
+    desc: "Every task move, comment, and update propagates instantly to all teammates via Socket.IO. Your whole team works in sync — zero refresh.",
   },
   {
     icon: "🗂️",
-    title: "Drag-&-Drop Kanban",
-    desc: "Visual board with TO DO → IN PROGRESS → DONE columns. Drag cards to update status in one motion.",
+    title: "Kanban Project Boards",
+    desc: "Visual boards with drag-and-drop columns. Track backlogs, sprints, and deliverables across every team and department.",
   },
   {
-    icon: "👥",
-    title: "Workspace Collaboration",
-    desc: "Invite teammates, assign roles (Admin / Member / Viewer), and control access per workspace.",
+    icon: "🏢",
+    title: "Multi-Workspace Org",
+    desc: "Create unlimited workspaces per department or project. Invite members, assign roles (Admin / Member / Viewer), and control access granularly.",
   },
   {
     icon: "🔐",
-    title: "Secure Auth",
-    desc: "JWT-based authentication with bcrypt hashing. New users register once; returning users log straight in.",
+    title: "Enterprise Security",
+    desc: "JWT-based auth, bcrypt password hashing, role-based access control. Every action is scoped to the authenticated user's permissions.",
   },
   {
     icon: "💬",
-    title: "Task Comments",
-    desc: "Thread comments on any task, mention teammates, and keep all context in one place.",
+    title: "Threaded Task Comments",
+    desc: "Keep all discussion in context — thread comments on any task, so nothing gets lost in chat.",
   },
   {
     icon: "📊",
-    title: "Activity Feed",
-    desc: "Full audit trail of who moved, created, or updated what — across every board in your workspace.",
+    title: "Full Activity Audit",
+    desc: "Every action is logged — who created, moved, or updated what, and when. Full transparency across all boards and workspaces.",
+  },
+  {
+    icon: "🎯",
+    title: "Priority & Assignment",
+    desc: "Set task priority (High / Medium / Low), assign to any team member, attach labels, and track progress with due dates.",
+  },
+  {
+    icon: "🔔",
+    title: "Join Request Workflow",
+    desc: "Members can request access to restricted workspaces. Admins approve or deny from the admin lobby — full governance built in.",
   },
 ];
 
 const steps = [
   {
     num: "01",
-    title: "Sign In or Register",
-    desc: 'Enter your work email. First-timers set a name + password. Returning users jump straight to the password step. Click "Sign In" at the top right.',
+    title: "Create Your Account",
+    desc: "Enter your work email and set a name and password. No invite needed — register instantly and start building your organization.",
   },
   {
     num: "02",
-    title: "Join or Create a Workspace",
-    desc: "Admins create workspaces and invite the team. Members request to join restricted workspaces. All activity is scoped to your workspace.",
+    title: "Create a Workspace",
+    desc: "Workspaces are your departments, teams, or projects. Create one, name it, and invite your team. Members get role-based access.",
   },
   {
     num: "03",
-    title: "Open Your Board",
-    desc: "Select a board from the workspace. Columns load instantly. Drag a task card to move it — changes sync to every open tab in real time.",
+    title: "Build Your Boards",
+    desc: "Each workspace can have multiple Kanban boards. Add columns, create tasks, assign priorities, and start tracking work.",
   },
   {
     num: "04",
-    title: "Collaborate & Track",
-    desc: "Add tasks, set priority, assign teammates, comment, and watch the activity feed. Admins can manage join requests from the lobby.",
+    title: "Collaborate in Real Time",
+    desc: "Everyone on the board sees updates live. Comment on tasks, drag cards, approve join requests — the full ERP workflow, together.",
   },
+];
+
+const stats = [
+  { value: "Real-Time", label: "WebSocket sync via Socket.IO" },
+  { value: "RBAC", label: "Role-based access control" },
+  { value: "Unlimited", label: "Workspaces & boards" },
+  { value: "Open", label: "Free to register & use" },
 ];
 
 export default function HomePage({ onGetStarted }: HomePageProps) {
@@ -75,11 +92,11 @@ export default function HomePage({ onGetStarted }: HomePageProps) {
           position: "sticky",
           top: 0,
           zIndex: 100,
-          background: "rgba(13,17,23,0.85)",
-          backdropFilter: "blur(12px)",
+          background: "rgba(13,17,23,0.90)",
+          backdropFilter: "blur(14px)",
           borderBottom: "1px solid var(--border, #21262d)",
-          padding: "0 32px",
-          height: 60,
+          padding: "0 40px",
+          height: 62,
           display: "flex",
           alignItems: "center",
           justifyContent: "space-between",
@@ -89,49 +106,72 @@ export default function HomePage({ onGetStarted }: HomePageProps) {
         <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
           <div
             style={{
-              width: 34,
-              height: 34,
-              borderRadius: 8,
+              width: 36,
+              height: 36,
+              borderRadius: 9,
               background: "linear-gradient(135deg, #58a6ff 0%, #bc8cff 100%)",
               display: "flex",
               alignItems: "center",
               justifyContent: "center",
               fontWeight: 800,
-              fontSize: 16,
+              fontSize: 17,
               color: "#fff",
+              boxShadow: "0 2px 10px rgba(88,166,255,0.3)",
             }}
           >
-            K
+            T
           </div>
-          <span style={{ fontWeight: 700, fontSize: 15, letterSpacing: "-0.3px" }}>
-            TechSters Kanban
-          </span>
+          <div>
+            <div style={{ fontWeight: 700, fontSize: 14.5, letterSpacing: "-0.3px", lineHeight: 1.1 }}>
+              TechSters ERP
+            </div>
+            <div style={{ fontSize: 10.5, color: "var(--text-secondary,#8b949e)", letterSpacing: "0.3px" }}>
+              Enterprise Platform
+            </div>
+          </div>
         </div>
 
-        {/* Nav links */}
-        <div style={{ display: "flex", alignItems: "center", gap: 28 }}>
+        {/* Nav links + CTA */}
+        <div style={{ display: "flex", alignItems: "center", gap: 32 }}>
           <a href="#features" style={{ fontSize: 13.5, color: "var(--text-secondary, #8b949e)", textDecoration: "none" }}>
             Features
           </a>
-          <a href="#how-to-use" style={{ fontSize: 13.5, color: "var(--text-secondary, #8b949e)", textDecoration: "none" }}>
-            How to Use
+          <a href="#how-it-works" style={{ fontSize: 13.5, color: "var(--text-secondary, #8b949e)", textDecoration: "none" }}>
+            How It Works
           </a>
-          <button
-            onClick={onGetStarted}
-            style={{
-              background: "linear-gradient(135deg, #58a6ff 0%, #bc8cff 100%)",
-              color: "#fff",
-              border: "none",
-              borderRadius: 8,
-              padding: "8px 20px",
-              fontSize: 13.5,
-              fontWeight: 600,
-              cursor: "pointer",
-              letterSpacing: "0.1px",
-            }}
-          >
-            Sign In →
-          </button>
+          <div style={{ display: "flex", gap: 8 }}>
+            <button
+              onClick={onGetStarted}
+              style={{
+                background: "transparent",
+                color: "var(--text-secondary,#8b949e)",
+                border: "1px solid var(--border,#21262d)",
+                borderRadius: 8,
+                padding: "7px 18px",
+                fontSize: 13.5,
+                fontWeight: 500,
+                cursor: "pointer",
+              }}
+            >
+              Sign In
+            </button>
+            <button
+              onClick={onGetStarted}
+              style={{
+                background: "linear-gradient(135deg, #58a6ff 0%, #bc8cff 100%)",
+                color: "#fff",
+                border: "none",
+                borderRadius: 8,
+                padding: "7px 20px",
+                fontSize: 13.5,
+                fontWeight: 700,
+                cursor: "pointer",
+                boxShadow: "0 2px 12px rgba(88,166,255,0.25)",
+              }}
+            >
+              Create Account →
+            </button>
+          </div>
         </div>
       </nav>
 
@@ -140,9 +180,9 @@ export default function HomePage({ onGetStarted }: HomePageProps) {
         style={{
           position: "relative",
           textAlign: "center",
-          padding: "90px 24px 80px",
+          padding: "100px 24px 90px",
           background:
-            "radial-gradient(ellipse at 50% -10%, rgba(88,166,255,0.14) 0%, transparent 60%), radial-gradient(ellipse at 80% 60%, rgba(188,140,255,0.10) 0%, transparent 55%)",
+            "radial-gradient(ellipse at 30% -5%, rgba(88,166,255,0.13) 0%, transparent 55%), radial-gradient(ellipse at 75% 70%, rgba(188,140,255,0.10) 0%, transparent 55%)",
         }}
       >
         {/* Badge */}
@@ -150,48 +190,49 @@ export default function HomePage({ onGetStarted }: HomePageProps) {
           style={{
             display: "inline-flex",
             alignItems: "center",
-            gap: 6,
-            background: "rgba(88,166,255,0.1)",
-            border: "1px solid rgba(88,166,255,0.3)",
+            gap: 7,
+            background: "rgba(63,185,80,0.10)",
+            border: "1px solid rgba(63,185,80,0.3)",
             borderRadius: 100,
-            padding: "5px 14px",
+            padding: "5px 16px",
             fontSize: 12,
-            color: "#58a6ff",
+            color: "#3fb950",
             fontWeight: 600,
-            marginBottom: 28,
-            letterSpacing: "0.5px",
+            marginBottom: 30,
+            letterSpacing: "0.4px",
           }}
         >
-          ✦ AVISHKAR&apos;26 · Hackathon Edition
+          <span style={{ width: 7, height: 7, borderRadius: "50%", background: "#3fb950", display: "inline-block" }} />
+          Open Registration · No Credit Card Required
         </div>
 
         <h1
           style={{
-            fontSize: "clamp(32px, 6vw, 58px)",
+            fontSize: "clamp(34px, 6vw, 62px)",
             fontWeight: 800,
-            lineHeight: 1.1,
-            marginBottom: 20,
-            letterSpacing: "-1.5px",
-            background: "linear-gradient(135deg, #e6edf3 30%, #bc8cff 100%)",
+            lineHeight: 1.08,
+            marginBottom: 22,
+            letterSpacing: "-2px",
+            background: "linear-gradient(135deg, #e6edf3 20%, #bc8cff 100%)",
             WebkitBackgroundClip: "text",
             WebkitTextFillColor: "transparent",
           }}
         >
-          Your team's real-time
+          The ERP built for
           <br />
-          Kanban workspace
+          modern teams
         </h1>
 
         <p
           style={{
-            fontSize: "clamp(14px, 2vw, 17px)",
+            fontSize: "clamp(14.5px, 2vw, 18px)",
             color: "var(--text-secondary, #8b949e)",
-            maxWidth: 520,
-            margin: "0 auto 40px",
-            lineHeight: 1.65,
+            maxWidth: 560,
+            margin: "0 auto 44px",
+            lineHeight: 1.7,
           }}
         >
-          Collaborate on tasks, drag cards across columns, and watch every update propagate live to your whole team — all in one sleek board.
+          Create your account, build workspaces, manage projects with real-time Kanban boards, and collaborate with your entire organization — all in one platform.
         </p>
 
         <div style={{ display: "flex", gap: 12, justifyContent: "center", flexWrap: "wrap" }}>
@@ -202,24 +243,25 @@ export default function HomePage({ onGetStarted }: HomePageProps) {
               color: "#fff",
               border: "none",
               borderRadius: 10,
-              padding: "13px 32px",
-              fontSize: 15,
+              padding: "14px 36px",
+              fontSize: 15.5,
               fontWeight: 700,
               cursor: "pointer",
-              boxShadow: "0 4px 24px rgba(88,166,255,0.25)",
+              boxShadow: "0 4px 28px rgba(88,166,255,0.28)",
+              letterSpacing: "-0.2px",
             }}
           >
-            Get Started Free →
+            Start for Free →
           </button>
           <a
-            href="#how-to-use"
+            href="#how-it-works"
             style={{
               background: "transparent",
-              color: "var(--text-secondary, #8b949e)",
-              border: "1px solid var(--border, #21262d)",
+              color: "var(--text-primary,#e6edf3)",
+              border: "1px solid var(--border,#21262d)",
               borderRadius: 10,
-              padding: "13px 32px",
-              fontSize: 15,
+              padding: "14px 36px",
+              fontSize: 15.5,
               fontWeight: 600,
               cursor: "pointer",
               textDecoration: "none",
@@ -227,135 +269,119 @@ export default function HomePage({ onGetStarted }: HomePageProps) {
               alignItems: "center",
             }}
           >
-            See how it works
+            See how it works ↓
           </a>
         </div>
 
-        {/* Mini board preview */}
+        {/* Stats row */}
         <div
           style={{
-            marginTop: 60,
             display: "flex",
-            gap: 12,
+            gap: 0,
             justifyContent: "center",
             flexWrap: "wrap",
-            opacity: 0.75,
+            marginTop: 64,
+            borderTop: "1px solid var(--border,#21262d)",
+            paddingTop: 36,
+            maxWidth: 760,
+            marginLeft: "auto",
+            marginRight: "auto",
           }}
         >
-          {["TO DO", "IN PROGRESS", "DONE"].map((col, ci) => (
+          {stats.map((s, i) => (
             <div
-              key={col}
+              key={s.value}
               style={{
-                width: 160,
-                background: "var(--bg-surface, #161b22)",
-                border: "1px solid var(--border, #21262d)",
-                borderRadius: 10,
-                padding: "12px",
-                textAlign: "left",
+                flex: "1 1 150px",
+                padding: "0 24px",
+                borderRight: i < stats.length - 1 ? "1px solid var(--border,#21262d)" : "none",
+                textAlign: "center",
               }}
             >
-              <div style={{ fontSize: 10, fontWeight: 700, letterSpacing: "0.8px", color: ["#58a6ff", "#f0883e", "#3fb950"][ci], marginBottom: 10 }}>
-                {col}
+              <div style={{ fontSize: 20, fontWeight: 800, color: "#58a6ff", letterSpacing: "-0.5px", marginBottom: 4 }}>
+                {s.value}
               </div>
-              {[1, 2].map((t) => (
-                <div
-                  key={t}
-                  style={{
-                    background: "var(--bg-base, #0d1117)",
-                    border: "1px solid var(--border, #21262d)",
-                    borderRadius: 6,
-                    padding: "8px 10px",
-                    marginBottom: 6,
-                    fontSize: 11,
-                    color: "var(--text-secondary, #8b949e)",
-                  }}
-                >
-                  {
-                    [
-                      ["Design schema", "JWT Auth"],
-                      ["Build UI", "Socket.IO"],
-                      ["Deploy app", "Seed DB"],
-                    ][ci][t - 1]
-                  }
-                </div>
-              ))}
+              <div style={{ fontSize: 12, color: "var(--text-secondary,#8b949e)" }}>{s.label}</div>
             </div>
           ))}
         </div>
       </section>
 
       {/* ── Features ────────────────────────────────────────────── */}
-      <section id="features" style={{ padding: "72px 24px", maxWidth: 960, margin: "0 auto" }}>
-        <div style={{ textAlign: "center", marginBottom: 48 }}>
-          <div style={{ fontSize: 12, fontWeight: 700, letterSpacing: "1.5px", color: "#58a6ff", textTransform: "uppercase", marginBottom: 10 }}>
-            Everything you need
+      <section id="features" style={{ padding: "80px 24px", maxWidth: 1040, margin: "0 auto" }}>
+        <div style={{ textAlign: "center", marginBottom: 52 }}>
+          <div style={{ fontSize: 11.5, fontWeight: 700, letterSpacing: "2px", color: "#58a6ff", textTransform: "uppercase", marginBottom: 12 }}>
+            Platform Capabilities
           </div>
-          <h2 style={{ fontSize: "clamp(24px, 4vw, 36px)", fontWeight: 800, letterSpacing: "-0.8px", marginBottom: 10 }}>
-            Built for real teams
+          <h2 style={{ fontSize: "clamp(24px, 4vw, 38px)", fontWeight: 800, letterSpacing: "-1px", marginBottom: 12 }}>
+            Everything your org needs
           </h2>
-          <p style={{ color: "var(--text-secondary, #8b949e)", fontSize: 14.5 }}>
-            All the collaboration primitives you need, zero bloat.
+          <p style={{ color: "var(--text-secondary, #8b949e)", fontSize: 15, maxWidth: 480, margin: "0 auto" }}>
+            From project tracking to org-wide governance — built as a full ERP, not a toy tool.
           </p>
         </div>
 
         <div
           style={{
             display: "grid",
-            gridTemplateColumns: "repeat(auto-fit, minmax(260px, 1fr))",
-            gap: 20,
+            gridTemplateColumns: "repeat(auto-fit, minmax(230px, 1fr))",
+            gap: 16,
           }}
         >
-          {features.map((f) => (
+          {features.map((f, i) => (
             <div
               key={f.title}
               style={{
                 background: "var(--bg-surface, #161b22)",
                 border: "1px solid var(--border, #21262d)",
                 borderRadius: 12,
-                padding: "24px",
-                transition: "border-color 0.2s",
+                padding: "22px 20px",
+                borderTop: `2px solid ${["#58a6ff","#bc8cff","#3fb950","#f0883e","#58a6ff","#bc8cff","#3fb950","#f0883e"][i]}33`,
               }}
             >
-              <div style={{ fontSize: 28, marginBottom: 12 }}>{f.icon}</div>
-              <div style={{ fontWeight: 700, fontSize: 14.5, marginBottom: 8 }}>{f.title}</div>
-              <div style={{ fontSize: 13, color: "var(--text-secondary, #8b949e)", lineHeight: 1.6 }}>{f.desc}</div>
+              <div style={{ fontSize: 26, marginBottom: 10 }}>{f.icon}</div>
+              <div style={{ fontWeight: 700, fontSize: 14, marginBottom: 7, letterSpacing: "-0.2px" }}>{f.title}</div>
+              <div style={{ fontSize: 12.5, color: "var(--text-secondary, #8b949e)", lineHeight: 1.65 }}>{f.desc}</div>
             </div>
           ))}
         </div>
       </section>
 
-      {/* ── How To Use ──────────────────────────────────────────── */}
+      {/* ── How It Works ────────────────────────────────────────── */}
       <section
-        id="how-to-use"
+        id="how-it-works"
         style={{
-          padding: "72px 24px",
+          padding: "80px 24px",
           background: "var(--bg-surface, #161b22)",
           borderTop: "1px solid var(--border, #21262d)",
           borderBottom: "1px solid var(--border, #21262d)",
         }}
       >
         <div style={{ maxWidth: 820, margin: "0 auto" }}>
-          <div style={{ textAlign: "center", marginBottom: 48 }}>
-            <div style={{ fontSize: 12, fontWeight: 700, letterSpacing: "1.5px", color: "#bc8cff", textTransform: "uppercase", marginBottom: 10 }}>
-              Quick manual
+          <div style={{ textAlign: "center", marginBottom: 52 }}>
+            <div style={{ fontSize: 11.5, fontWeight: 700, letterSpacing: "2px", color: "#bc8cff", textTransform: "uppercase", marginBottom: 12 }}>
+              Getting Started
             </div>
-            <h2 style={{ fontSize: "clamp(24px, 4vw, 36px)", fontWeight: 800, letterSpacing: "-0.8px" }}>
-              Up and running in 4 steps
+            <h2 style={{ fontSize: "clamp(24px, 4vw, 38px)", fontWeight: 800, letterSpacing: "-1px" }}>
+              Live in under 2 minutes
             </h2>
+            <p style={{ color: "var(--text-secondary,#8b949e)", fontSize: 15, maxWidth: 420, margin: "12px auto 0" }}>
+              No setup fees, no approval process. Register with your email and your team is up and running immediately.
+            </p>
           </div>
 
-          <div style={{ display: "flex", flexDirection: "column", gap: 24 }}>
+          <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
             {steps.map((s, i) => (
               <div
                 key={s.num}
                 style={{
                   display: "flex",
-                  gap: 24,
+                  gap: 20,
                   alignItems: "flex-start",
                   background: "var(--bg-base, #0d1117)",
                   border: "1px solid var(--border, #21262d)",
                   borderRadius: 12,
-                  padding: "24px 28px",
+                  padding: "22px 24px",
                 }}
               >
                 <div
@@ -365,19 +391,20 @@ export default function HomePage({ onGetStarted }: HomePageProps) {
                     height: 44,
                     borderRadius: 10,
                     background: i % 2 === 0 ? "rgba(88,166,255,0.12)" : "rgba(188,140,255,0.12)",
-                    border: `1px solid ${i % 2 === 0 ? "rgba(88,166,255,0.3)" : "rgba(188,140,255,0.3)"}`,
+                    border: `1px solid ${i % 2 === 0 ? "rgba(88,166,255,0.35)" : "rgba(188,140,255,0.35)"}`,
                     display: "flex",
                     alignItems: "center",
                     justifyContent: "center",
                     fontSize: 13,
                     fontWeight: 800,
                     color: i % 2 === 0 ? "#58a6ff" : "#bc8cff",
+                    letterSpacing: "-0.5px",
                   }}
                 >
                   {s.num}
                 </div>
                 <div>
-                  <div style={{ fontWeight: 700, fontSize: 15, marginBottom: 6 }}>{s.title}</div>
+                  <div style={{ fontWeight: 700, fontSize: 15, marginBottom: 6, letterSpacing: "-0.2px" }}>{s.title}</div>
                   <div style={{ fontSize: 13.5, color: "var(--text-secondary, #8b949e)", lineHeight: 1.65 }}>{s.desc}</div>
                 </div>
               </div>
@@ -386,46 +413,36 @@ export default function HomePage({ onGetStarted }: HomePageProps) {
         </div>
       </section>
 
-      {/* ── Demo credentials callout ────────────────────────────── */}
-      <section style={{ padding: "60px 24px", maxWidth: 820, margin: "0 auto", textAlign: "center" }}>
+      {/* ── CTA Banner ──────────────────────────────────────────── */}
+      <section style={{ padding: "72px 24px" }}>
         <div
           style={{
-            background: "var(--bg-surface, #161b22)",
-            border: "1px solid var(--border, #21262d)",
-            borderRadius: 14,
-            padding: "36px 32px",
+            maxWidth: 760,
+            margin: "0 auto",
+            background: "linear-gradient(135deg, rgba(88,166,255,0.08) 0%, rgba(188,140,255,0.08) 100%)",
+            border: "1px solid rgba(88,166,255,0.2)",
+            borderRadius: 16,
+            padding: "52px 40px",
+            textAlign: "center",
           }}
         >
-          <div style={{ fontSize: 24, marginBottom: 12 }}>🎯</div>
-          <h3 style={{ fontWeight: 800, fontSize: 18, marginBottom: 8 }}>Try a demo account instantly</h3>
-          <p style={{ fontSize: 13.5, color: "var(--text-secondary, #8b949e)", marginBottom: 24, lineHeight: 1.6 }}>
-            Three pre-seeded accounts let you explore every role without signing up.
-            Password for all: <code style={{ background: "rgba(255,255,255,0.08)", borderRadius: 4, padding: "2px 7px", fontSize: 12.5 }}>password123</code>
+          <div style={{ fontSize: 36, marginBottom: 16 }}>🚀</div>
+          <h2
+            style={{
+              fontSize: "clamp(22px, 4vw, 34px)",
+              fontWeight: 800,
+              letterSpacing: "-1px",
+              marginBottom: 14,
+              background: "linear-gradient(135deg, #e6edf3 30%, #bc8cff 100%)",
+              WebkitBackgroundClip: "text",
+              WebkitTextFillColor: "transparent",
+            }}
+          >
+            Ready to manage your organization?
+          </h2>
+          <p style={{ fontSize: 15, color: "var(--text-secondary,#8b949e)", marginBottom: 32, lineHeight: 1.65, maxWidth: 440, margin: "0 auto 32px" }}>
+            Create your free account, set up your first workspace, and have your whole team collaborating in minutes.
           </p>
-          <div style={{ display: "flex", gap: 12, justifyContent: "center", flexWrap: "wrap", marginBottom: 28 }}>
-            {[
-              { label: "Admin", email: "alice@techsters.dev", color: "#58a6ff" },
-              { label: "Member", email: "bob@techsters.dev", color: "#3fb950" },
-              { label: "Viewer", email: "carol@techsters.dev", color: "#bc8cff" },
-            ].map((d) => (
-              <div
-                key={d.label}
-                style={{
-                  background: "var(--bg-base, #0d1117)",
-                  border: `1px solid ${d.color}44`,
-                  borderRadius: 10,
-                  padding: "12px 20px",
-                  textAlign: "left",
-                  minWidth: 170,
-                }}
-              >
-                <div style={{ fontSize: 11, fontWeight: 700, color: d.color, letterSpacing: "0.5px", marginBottom: 4 }}>
-                  {d.label}
-                </div>
-                <div style={{ fontSize: 12.5, color: "var(--text-secondary, #8b949e)" }}>{d.email}</div>
-              </div>
-            ))}
-          </div>
           <button
             onClick={onGetStarted}
             style={{
@@ -433,14 +450,18 @@ export default function HomePage({ onGetStarted }: HomePageProps) {
               color: "#fff",
               border: "none",
               borderRadius: 10,
-              padding: "12px 32px",
-              fontSize: 14,
+              padding: "14px 40px",
+              fontSize: 15.5,
               fontWeight: 700,
               cursor: "pointer",
+              boxShadow: "0 4px 24px rgba(88,166,255,0.3)",
             }}
           >
-            Sign In & Explore →
+            Create Your Free Account →
           </button>
+          <div style={{ fontSize: 12, color: "var(--text-secondary,#8b949e)", marginTop: 14 }}>
+            No credit card · No approval · Start immediately
+          </div>
         </div>
       </section>
 
@@ -448,7 +469,7 @@ export default function HomePage({ onGetStarted }: HomePageProps) {
       <footer
         style={{
           borderTop: "1px solid var(--border, #21262d)",
-          padding: "24px 32px",
+          padding: "24px 40px",
           display: "flex",
           alignItems: "center",
           justifyContent: "space-between",
@@ -461,9 +482,9 @@ export default function HomePage({ onGetStarted }: HomePageProps) {
         <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
           <div
             style={{
-              width: 22,
-              height: 22,
-              borderRadius: 5,
+              width: 24,
+              height: 24,
+              borderRadius: 6,
               background: "linear-gradient(135deg, #58a6ff 0%, #bc8cff 100%)",
               display: "flex",
               alignItems: "center",
@@ -473,9 +494,9 @@ export default function HomePage({ onGetStarted }: HomePageProps) {
               color: "#fff",
             }}
           >
-            K
+            T
           </div>
-          <span>TechSters Kanban · AVISHKAR&apos;26</span>
+          <span>TechSters ERP · Enterprise Resource Planning</span>
         </div>
         <div>Built with Express · Socket.IO · React · Prisma · Vercel</div>
       </footer>
