@@ -12,6 +12,9 @@ import { taskRouter } from "./routes/tasks";
 import { commentRouter } from "./routes/comments";
 import { activityRouter } from "./routes/activity";
 import { exportRouter } from "./routes/export";
+import { joinRouter } from "./routes/joinRequests";
+import { feedbackRouter } from "./routes/feedback";
+import { adminRouter } from "./routes/admin";
 import { setupSocketIO } from "./socket";
 
 dotenv.config();
@@ -39,13 +42,16 @@ app.get("/health", (_req: Request, res: Response) => {
 // API Routes
 app.use("/api/auth", authRouter);
 app.use("/api/workspaces", workspaceRouter);
+app.use("/api/workspaces", activityRouter);
+app.use("/api/workspaces", exportRouter);
 app.use("/api/boards", boardRouter);
 app.use("/api/boards", columnRouter);
 app.use("/api/columns", columnRouter);
 app.use("/api/tasks", taskRouter);
 app.use("/api/tasks", commentRouter);
-app.use("/api/workspaces", activityRouter);
-app.use("/api/workspaces", exportRouter);
+app.use("/api/join-requests", joinRouter);
+app.use("/api/feedback", feedbackRouter);
+app.use("/api/admin", adminRouter);
 
 // Global error handler
 app.use((err: Error, _req: Request, res: Response, _next: NextFunction) => {
@@ -53,7 +59,6 @@ app.use((err: Error, _req: Request, res: Response, _next: NextFunction) => {
   res.status(500).json({ error: "Internal server error", message: err.message });
 });
 
-// 404 handler
 app.use((_req: Request, res: Response) => {
   res.status(404).json({ error: "Route not found" });
 });
