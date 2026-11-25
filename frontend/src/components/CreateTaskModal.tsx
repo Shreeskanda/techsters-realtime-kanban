@@ -38,99 +38,107 @@ export default function CreateTaskModal({ columnId, workspaceId, members, onClos
         workspaceId,
       });
       onCreate(task);
-    } catch (err: any) {
-      setError(err.message);
+    } catch (err: unknown) {
+      setError(err instanceof Error ? err.message : "Failed to create task");
     } finally {
       setLoading(false);
     }
   };
 
   return (
-    <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-50 p-4">
-      <div className="bg-slate-800 border border-slate-700 rounded-2xl p-6 w-full max-w-lg shadow-2xl max-h-[90vh] overflow-y-auto">
-        <div className="flex items-center justify-between mb-5">
-          <h2 className="text-xl font-bold text-white">Create Task</h2>
-          <button onClick={onClose} className="text-slate-400 hover:text-white text-2xl leading-none">×</button>
+    <div className="overlay">
+      <div className="modal" style={{ maxWidth: 500 }}>
+        <div className="modal-header">
+          <div className="modal-title">Create New Task</div>
+          <button onClick={onClose} className="modal-close" aria-label="Close">
+            ×
+          </button>
         </div>
 
-        <form onSubmit={handleSubmit} className="space-y-4">
-          <div>
-            <label className="block text-sm font-medium text-slate-300 mb-1">Title *</label>
-            <input
-              className="input"
-              placeholder="Task title..."
-              value={form.title}
-              onChange={(e) => setForm((f) => ({ ...f, title: e.target.value }))}
-              required
-            />
-          </div>
-
-          <div>
-            <label className="block text-sm font-medium text-slate-300 mb-1">Description</label>
-            <textarea
-              className="input resize-none h-24"
-              placeholder="Task description..."
-              value={form.description}
-              onChange={(e) => setForm((f) => ({ ...f, description: e.target.value }))}
-            />
-          </div>
-
-          <div className="grid grid-cols-2 gap-4">
+        <form onSubmit={handleSubmit}>
+          <div className="modal-body" style={{ display: "flex", flexDirection: "column", gap: 14 }}>
             <div>
-              <label className="block text-sm font-medium text-slate-300 mb-1">Priority</label>
-              <select
-                className="input"
-                value={form.priority}
-                onChange={(e) => setForm((f) => ({ ...f, priority: e.target.value as Task["priority"] }))}
-              >
-                <option value="LOW">Low</option>
-                <option value="MEDIUM">Medium</option>
-                <option value="HIGH">High</option>
-                <option value="URGENT">Urgent</option>
-              </select>
-            </div>
-            <div>
-              <label className="block text-sm font-medium text-slate-300 mb-1">Due Date</label>
+              <label className="field-label">Title *</label>
               <input
-                type="date"
                 className="input"
-                value={form.dueDate}
-                onChange={(e) => setForm((f) => ({ ...f, dueDate: e.target.value }))}
+                placeholder="e.g. Configure Redis session cache"
+                value={form.title}
+                onChange={(e) => setForm((f) => ({ ...f, title: e.target.value }))}
+                autoFocus
+                required
               />
             </div>
+
+            <div>
+              <label className="field-label">Description</label>
+              <textarea
+                className="input"
+                rows={3}
+                placeholder="Acceptance criteria and implementation notes..."
+                value={form.description}
+                onChange={(e) => setForm((f) => ({ ...f, description: e.target.value }))}
+              />
+            </div>
+
+            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}>
+              <div>
+                <label className="field-label">Priority</label>
+                <select
+                  className="input sm"
+                  value={form.priority}
+                  onChange={(e) => setForm((f) => ({ ...f, priority: e.target.value as Task["priority"] }))}
+                >
+                  <option value="LOW">Low</option>
+                  <option value="MEDIUM">Medium</option>
+                  <option value="HIGH">High</option>
+                  <option value="URGENT">Urgent</option>
+                </select>
+              </div>
+              <div>
+                <label className="field-label">Due Date</label>
+                <input
+                  type="date"
+                  className="input sm"
+                  value={form.dueDate}
+                  onChange={(e) => setForm((f) => ({ ...f, dueDate: e.target.value }))}
+                />
+              </div>
+            </div>
+
+            <div>
+              <label className="field-label">Assignee</label>
+              <select
+                className="input sm"
+                value={form.assigneeId}
+                onChange={(e) => setForm((f) => ({ ...f, assigneeId: e.target.value }))}
+              >
+                <option value="">Unassigned</option>
+                {members.map((m) => (
+                  <option key={m.user.id} value={m.user.id}>
+                    {m.user.name} ({m.role})
+                  </option>
+                ))}
+              </select>
+            </div>
+
+            <div>
+              <label className="field-label">Labels (comma-separated)</label>
+              <input
+                className="input sm"
+                placeholder="frontend, security, sprint-1"
+                value={form.labels}
+                onChange={(e) => setForm((f) => ({ ...f, labels: e.target.value }))}
+              />
+            </div>
+
+            {error && <div className="alert alert-error">{error}</div>}
           </div>
 
-          <div>
-            <label className="block text-sm font-medium text-slate-300 mb-1">Assignee</label>
-            <select
-              className="input"
-              value={form.assigneeId}
-              onChange={(e) => setForm((f) => ({ ...f, assigneeId: e.target.value }))}
-            >
-              <option value="">Unassigned</option>
-              {members.map((m) => (
-                <option key={m.user.id} value={m.user.id}>
-                  {m.user.name} ({m.role})
-                </option>
-              ))}
-            </select>
-          </div>
-
-          <div>
-            <label className="block text-sm font-medium text-slate-300 mb-1">Labels (comma-separated)</label>
-            <input
-              className="input"
-              placeholder="frontend, bug, feature"
-              value={form.labels}
-              onChange={(e) => setForm((f) => ({ ...f, labels: e.target.value }))}
-            />
-          </div>
-
-          {error && <div className="bg-red-900/40 border border-red-700 rounded-lg px-4 py-3 text-red-300 text-sm">{error}</div>}
-
-          <div className="flex gap-3 pt-2">
-            <button type="button" onClick={onClose} className="btn-secondary flex-1">Cancel</button>
-            <button type="submit" disabled={loading} className="btn-primary flex-1">
+          <div className="modal-footer">
+            <button type="button" onClick={onClose} className="btn btn-secondary">
+              Cancel
+            </button>
+            <button type="submit" disabled={loading} className="btn btn-primary">
               {loading ? "Creating..." : "Create Task"}
             </button>
           </div>
