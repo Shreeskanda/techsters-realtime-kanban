@@ -17,6 +17,17 @@ enum Role {
   VIEWER
 }
 
+enum SystemRole {
+  ADMIN
+  MEMBER
+}
+
+enum JoinRequestStatus {
+  PENDING
+  APPROVED
+  REJECTED
+}
+
 enum Priority {
   LOW
   MEDIUM
@@ -30,6 +41,7 @@ model User {
   name          String
   password      String
   avatar        String?
+  systemRole    SystemRole       @default(MEMBER)
   createdAt     DateTime         @default(now())
   updatedAt     DateTime         @updatedAt
 
@@ -38,6 +50,8 @@ model User {
   createdTasks  Task[]           @relation("TaskCreator")
   comments      Comment[]
   activityLogs  ActivityLog[]
+  joinRequests  JoinRequest[]
+  feedbacks     ProjectFeedback[]
 
   @@index([email])
 }
@@ -53,6 +67,8 @@ model Workspace {
   members     WorkspaceMember[]
   boards      Board[]
   activityLogs ActivityLog[]
+  joinRequests JoinRequest[]
+  feedbacks   ProjectFeedback[]
 
   @@index([slug])
 }
@@ -155,6 +171,41 @@ model ActivityLog {
 
   taskId      String?
   task        Task?     @relation(fields: [taskId], references: [id], onDelete: SetNull)
+
+  @@index([workspaceId])
+  @@index([userId])
+}
+
+model JoinRequest {
+  id          String            @id @default(cuid())
+  status      JoinRequestStatus @default(PENDING)
+  message     String?
+  createdAt   DateTime          @default(now())
+  updatedAt   DateTime          @updatedAt
+
+  userId      String
+  user        User              @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  workspaceId String
+  workspace   Workspace         @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, workspaceId])
+  @@index([workspaceId])
+  @@index([userId])
+}
+
+model ProjectFeedback {
+  id          String    @id @default(cuid())
+  rating      Int
+  category    String    @default("GENERAL")
+  message     String
+  createdAt   DateTime  @default(now())
+
+  userId      String
+  user        User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  workspaceId String
+  workspace   Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
 
   @@index([workspaceId])
   @@index([userId])
