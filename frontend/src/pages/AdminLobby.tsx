@@ -3,6 +3,7 @@ import { api } from "../lib/api";
 import { connectSocket } from "../lib/socket";
 import { useAuthStore } from "../store/authStore";
 import CollaborationWidgets from "../components/CollaborationWidgets";
+import AssignMembersModal from "../components/AssignMembersModal";
 import type { TaskModalTab } from "../components/TaskModal";
 import type { AdminStats, AdminUserStatus, Workspace } from "../lib/api";
 
@@ -17,6 +18,8 @@ interface Props {
     initialTab?: TaskModalTab
   ) => void;
   onPendingCountChange?: (count: number) => void;
+  onWorkspaceListChanged?: () => void;
+  onDeletedWorkspace?: (workspaceId: string) => void;
 }
 
 type LobbyTab = "overview" | "users" | "requests" | "logs" | "feedback";
@@ -54,13 +57,28 @@ const PRESENCE_META: Record<
   DEACTIVATED: { label: "Deactivated", badgeClass: "badge-red" },
 };
 
-export default function AdminLobby({ onSelectWorkspace, onSelectBoard, onPendingCountChange }: Props) {
+export default function AdminLobby({
+  onSelectWorkspace,
+  onSelectBoard,
+  onPendingCountChange,
+  onWorkspaceListChanged,
+  onDeletedWorkspace,
+}: Props) {
   const currentUser = useAuthStore((s) => s.user);
   const [tab, setTab] = useState<LobbyTab>("overview");
   const [stats, setStats] = useState<AdminStats | null>(null);
   const [workspaces, setWorkspaces] = useState<Workspace[]>([]);
   const [users, setUsers] = useState<AdminUserStatus[]>([]);
   const [loading, setLoading] = useState(true);
+
+  // Assign / Delete Modals
+  const [assignProjectTarget, setAssignProjectTarget] = useState<Workspace | null>(null);
+  const [assignUserTarget, setAssignUserTarget] = useState<AdminUserStatus | null>(null);
+  const [assignUserWsId, setAssignUserWsId] = useState("");
+  const [assignUserRole, setAssignUserRole] = useState<"ADMIN" | "MEMBER" | "VIEWER">("MEMBER");
+  const [assignUserBusy, setAssignUserBusy] = useState(false);
+  const [assignUserMsg, setAssignUserMsg] = useState<{ ok: boolean; msg: string } | null>(null);
+  const [deletingWsId, setDeletingWsId] = useState<string | null>(null);
 
   // Filters
   const [logSearch, setLogSearch] = useState("");
@@ -123,6 +141,9 @@ export default function AdminLobby({ onSelectWorkspace, onSelectBoard, onPending
     socket.on("blocker_resolved", refresh);
     socket.on("handoff_created", refresh);
     socket.on("handoff_acknowledged", refresh);
+    socket.on("workspace_deleted", refresh);
+    socket.on("member_added", refresh);
+    socket.on("member_removed", refresh);
 
     return () => {
       socket.off("join_request_received", refresh);
@@ -138,6 +159,9 @@ export default function AdminLobby({ onSelectWorkspace, onSelectBoard, onPending
       socket.off("blocker_resolved", refresh);
       socket.off("handoff_created", refresh);
       socket.off("handoff_acknowledged", refresh);
+      socket.off("workspace_deleted", refresh);
+      socket.off("member_added", refresh);
+      socket.off("member_removed", refresh);
     };
   }, [loadData]);
 
@@ -168,10 +192,58 @@ export default function AdminLobby({ onSelectWorkspace, onSelectBoard, onPending
       setNewDesc("");
       setShowCreate(false);
       await loadData();
+      onWorkspaceListChanged?.();
     } catch (err: unknown) {
       setCreateErr(err instanceof Error ? err.message : "Failed to create project");
     } finally {
       setCreating(false);
+    }
+  };
+
+  const handleDeleteProject = async (ws: Workspace) => {
+    if (!confirm(`Delete project "${ws.name}" and all its boards/tasks permanently?`)) return;
+    setDeletingWsId(ws.id);
+    try {
+      await api.workspaces.delete(ws.id);
+      await loadData();
+      onDeletedWorkspace?.(ws.id);
+    } catch (err: unknown) {
+      setUserActionErr(err instanceof Error ? err.message : "Failed to delete project");
+    } finally {
+      setDeletingWsId(null);
+    }
+  };
+
+  const openAssignUserModal = (u: AdminUserStatus) => {
+    setAssignUserTarget(u);
+    setAssignUserMsg(null);
+    const availableWs = workspaces.find(
+      (w) => !u.memberships.some((m) => m.workspace.id === w.id)
+    );
+    setAssignUserWsId(availableWs?.id || "");
+    setAssignUserRole("MEMBER");
+  };
+
+  const handleAssignUserToProject = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!assignUserTarget || !assignUserWsId) return;
+    setAssignUserBusy(true);
+    setAssignUserMsg(null);
+    try {
+      await api.workspaces.inviteMember(assignUserWsId, {
+        email: assignUserTarget.email,
+        role: assignUserRole,
+      });
+      setAssignUserMsg({ ok: true, msg: `Assigned ${assignUserTarget.name} as ${assignUserRole}.` });
+      await loadData();
+      onWorkspaceListChanged?.();
+    } catch (err: unknown) {
+      setAssignUserMsg({
+        ok: false,
+        msg: err instanceof Error ? err.message : "Failed to assign project",
+      });
+    } finally {
+      setAssignUserBusy(false);
     }
   };
 
@@ -375,21 +447,31 @@ export default function AdminLobby({ onSelectWorkspace, onSelectBoard, onPending
                                   })
                                 : "Never"}
                             </td>
-                            <td style={{ textAlign: "right" }}>
+                            <td style={{ textAlign: "right", whiteSpace: "nowrap" }}>
                               {isSelf ? (
                                 <span style={{ fontSize: 11.5, color: "var(--text-muted)" }}>Current Admin</span>
                               ) : (
-                                <button
-                                  className={`btn btn-sm ${u.isActive ? "btn-danger" : "btn-primary"}`}
-                                  disabled={togglingUserId === u.id}
-                                  onClick={() => handleToggleUserActivation(u)}
-                                >
-                                  {togglingUserId === u.id
-                                    ? "..."
-                                    : u.isActive
-                                      ? "Deactivate"
-                                      : "Activate"}
-                                </button>
+                                <div style={{ display: "inline-flex", gap: 6 }}>
+                                  {u.isActive && workspaces.length > 0 && (
+                                    <button
+                                      className="btn btn-secondary btn-sm"
+                                      onClick={() => openAssignUserModal(u)}
+                                    >
+                                      Assign Project
+                                    </button>
+                                  )}
+                                  <button
+                                    className={`btn btn-sm ${u.isActive ? "btn-danger" : "btn-primary"}`}
+                                    disabled={togglingUserId === u.id}
+                                    onClick={() => handleToggleUserActivation(u)}
+                                  >
+                                    {togglingUserId === u.id
+                                      ? "..."
+                                      : u.isActive
+                                        ? "Deactivate"
+                                        : "Activate"}
+                                  </button>
+                                </div>
                               )}
                             </td>
                           </tr>
@@ -482,13 +564,28 @@ export default function AdminLobby({ onSelectWorkspace, onSelectBoard, onPending
                         ))}
                       </div>
                     </div>
-                    <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", paddingTop: 10, borderTop: "1px solid var(--border-subtle)" }}>
+                    <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", paddingTop: 10, borderTop: "1px solid var(--border-subtle)", gap: 6, flexWrap: "wrap" }}>
                       <span style={{ fontSize: 11.5, color: "var(--text-secondary)" }}>
                         {ws._count?.members ?? ws.members?.length ?? 0} members
                       </span>
-                      <button className="btn btn-ghost btn-sm" onClick={() => onSelectWorkspace(ws)}>
-                        Manage Team & Logs
-                      </button>
+                      <div style={{ display: "flex", gap: 6, flexWrap: "wrap" }}>
+                        <button
+                          className="btn btn-secondary btn-sm"
+                          onClick={() => setAssignProjectTarget(ws)}
+                        >
+                          Assign Members
+                        </button>
+                        <button className="btn btn-ghost btn-sm" onClick={() => onSelectWorkspace(ws)}>
+                          Manage
+                        </button>
+                        <button
+                          className="btn btn-danger btn-sm"
+                          disabled={deletingWsId === ws.id}
+                          onClick={() => handleDeleteProject(ws)}
+                        >
+                          {deletingWsId === ws.id ? "..." : "Delete"}
+                        </button>
+                      </div>
                     </div>
                   </div>
                 ))}
@@ -670,21 +767,31 @@ export default function AdminLobby({ onSelectWorkspace, onSelectBoard, onPending
                           <td style={{ fontSize: 12, whiteSpace: "nowrap" }}>
                             {u.lastSeenAt ? new Date(u.lastSeenAt).toLocaleString() : "—"}
                           </td>
-                          <td style={{ textAlign: "right" }}>
+                          <td style={{ textAlign: "right", whiteSpace: "nowrap" }}>
                             {isSelf ? (
                               <span style={{ fontSize: 11.5, color: "var(--text-muted)" }}>You</span>
                             ) : (
-                              <button
-                                className={`btn btn-sm ${u.isActive ? "btn-danger" : "btn-primary"}`}
-                                disabled={togglingUserId === u.id}
-                                onClick={() => handleToggleUserActivation(u)}
-                              >
-                                {togglingUserId === u.id
-                                  ? "..."
-                                  : u.isActive
-                                    ? "Deactivate"
-                                    : "Activate"}
-                              </button>
+                              <div style={{ display: "inline-flex", gap: 6 }}>
+                                {u.isActive && workspaces.length > 0 && (
+                                  <button
+                                    className="btn btn-secondary btn-sm"
+                                    onClick={() => openAssignUserModal(u)}
+                                  >
+                                    Assign Project
+                                  </button>
+                                )}
+                                <button
+                                  className={`btn btn-sm ${u.isActive ? "btn-danger" : "btn-primary"}`}
+                                  disabled={togglingUserId === u.id}
+                                  onClick={() => handleToggleUserActivation(u)}
+                                >
+                                  {togglingUserId === u.id
+                                    ? "..."
+                                    : u.isActive
+                                      ? "Deactivate"
+                                      : "Activate"}
+                                </button>
+                              </div>
                             )}
                           </td>
                         </tr>
@@ -953,6 +1060,85 @@ export default function AdminLobby({ onSelectWorkspace, onSelectBoard, onPending
                 </button>
                 <button type="submit" disabled={creating} className="btn btn-primary">
                   {creating ? "Creating..." : "Create Project"}
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+      {/* Assign Members to Project Modal */}
+      {assignProjectTarget && (
+        <AssignMembersModal
+          workspaceId={assignProjectTarget.id}
+          workspaceName={assignProjectTarget.name}
+          currentUserId={currentUser?.id || ""}
+          onClose={() => setAssignProjectTarget(null)}
+          onChanged={() => {
+            loadData();
+            onWorkspaceListChanged?.();
+          }}
+        />
+      )}
+
+      {/* Assign Specific User to Project Modal */}
+      {assignUserTarget && (
+        <div className="overlay" onClick={(e) => { if (e.target === e.currentTarget) setAssignUserTarget(null); }}>
+          <div className="modal" style={{ maxWidth: 440 }}>
+            <div className="modal-header">
+              <div>
+                <div className="modal-title">Assign Project to Member</div>
+                <div style={{ fontSize: 12.5, color: "var(--text-secondary)", marginTop: 3 }}>
+                  {assignUserTarget.name} ({assignUserTarget.email})
+                </div>
+              </div>
+              <button className="modal-close" onClick={() => setAssignUserTarget(null)}>
+                ×
+              </button>
+            </div>
+            <form onSubmit={handleAssignUserToProject}>
+              <div className="modal-body" style={{ display: "flex", flexDirection: "column", gap: 14 }}>
+                {assignUserMsg && (
+                  <div className={`alert ${assignUserMsg.ok ? "alert-success" : "alert-error"}`}>
+                    {assignUserMsg.msg}
+                  </div>
+                )}
+                <div>
+                  <label className="field-label">Select Project *</label>
+                  <select
+                    className="input"
+                    value={assignUserWsId}
+                    onChange={(e) => setAssignUserWsId(e.target.value)}
+                    required
+                  >
+                    {workspaces.map((w) => {
+                      const existing = assignUserTarget.memberships.find((m) => m.workspace.id === w.id);
+                      return (
+                        <option key={w.id} value={w.id} disabled={!!existing}>
+                          {w.name} {existing ? `(Already ${existing.role})` : ""}
+                        </option>
+                      );
+                    })}
+                  </select>
+                </div>
+                <div>
+                  <label className="field-label">Workspace Role</label>
+                  <select
+                    className="input"
+                    value={assignUserRole}
+                    onChange={(e) => setAssignUserRole(e.target.value as "ADMIN" | "MEMBER" | "VIEWER")}
+                  >
+                    <option value="MEMBER">MEMBER (Edit &amp; Collaborate)</option>
+                    <option value="ADMIN">ADMIN (Manage Team &amp; Settings)</option>
+                    <option value="VIEWER">VIEWER (Read-Only)</option>
+                  </select>
+                </div>
+              </div>
+              <div className="modal-footer">
+                <button type="button" className="btn btn-secondary" onClick={() => setAssignUserTarget(null)}>
+                  Close
+                </button>
+                <button type="submit" disabled={assignUserBusy || !assignUserWsId} className="btn btn-primary">
+                  {assignUserBusy ? "Assigning..." : "Assign Project"}
                 </button>
               </div>
             </form>

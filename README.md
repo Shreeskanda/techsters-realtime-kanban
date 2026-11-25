@@ -62,7 +62,12 @@ Transparent, non-punitive, deterministic health analysis computed directly from 
 - Admin Lobby displays live account activation (`Activated` / `Deactivated`), session presence (`Online Now`, `Recently Active`, `Offline`, `Never Logged In`), `lastLoginAt`, and `lastSeenAt`
 - Admins can activate or deactivate accounts server-side (deactivated users cannot log in and active tokens/sockets are immediately revoked)
 
-### F. Foundational Kanban & RBAC Features Preserved
+### F. Local Workspace Assistant & Project Governance
+- **TechSters Local Chatbot (`POST /api/chat`):** Zero-API-key deterministic workspace intelligence assistant (with optional `OLLAMA_URL` local LLM integration) available across all authenticated views via the floating **Local Assistant** drawer. Strictly scoped to authorized workspace memberships and Silent Blocker privacy rules, with deep-links straight into task tabs (`Overview`, `Memory`, `Blockers`, `Handoffs`).
+- **Delete Project (`DELETE /api/workspaces/:id`):** Workspace `ADMIN`s can permanently delete projects from Admin Lobby, Member Lobby, All Projects, Workspace Settings, and Project Portal with Socket.IO live removal.
+- **Assign Project to Members (`GET /api/workspaces/:id/assignable-users`):** Active registered-user picker allowing `ADMIN`s to assign existing users to projects with `ADMIN`/`MEMBER`/`VIEWER` roles or update/remove memberships without memorizing emails.
+
+### G. Foundational Kanban & RBAC Features Preserved
 - **Role-Based Access Control:** Workspace-scoped `ADMIN`, `MEMBER`, and `VIEWER` enforced server-side (VIEWER receives `403` on task, memory, blocker, handoff, or comment mutations)
 - **Interactive Kanban Board:** Drag-and-drop progression, custom columns, filters, badges for active blockers / unread handoffs / memory counts, and inline Health Pulse drawer
 - **Unified Task Activity Tab:** Chronological stream merging status changes, comments, Task Memory Capsule entries, visible blockers, handoffs, and acknowledgments
@@ -111,8 +116,10 @@ TechSters 2.0 models:
 
 ## 6. Key API Endpoints
 
-### Auth & Admin Activation
+### Auth, Workspaces & Admin Activation
 - `POST /api/auth/check-email`, `POST /api/auth/register`, `POST /api/auth/login`, `GET /api/auth/me`
+- `GET /api/workspaces`, `POST /api/workspaces`, `DELETE /api/workspaces/:id`, `GET /api/workspaces/:id/assignable-users`, `POST /api/workspaces/:id/members`
+- `POST /api/chat` – Local workspace intelligence chatbot (RBAC and blocker-privacy scoped)
 - `GET /api/admin/stats` – Platform stats, pending requests, blocker/handoff counts & activation counts
 - `GET /api/admin/users` – All registered users with activation & online presence status (System `ADMIN`)
 - `PATCH /api/admin/users/:id/activate` | `/deactivate` – Toggle account activation (System `ADMIN`)

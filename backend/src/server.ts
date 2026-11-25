@@ -19,6 +19,7 @@ import { memoryRouter } from "./routes/memory";
 import { blockerRouter } from "./routes/blockers";
 import { handoffRouter } from "./routes/handoffs";
 import { healthRouter } from "./routes/health";
+import { chatRouter } from "./routes/chat";
 import { setupSocketIO } from "./socket";
 import { setIO } from "./lib/io";
 
@@ -82,6 +83,7 @@ app.use("/api/tasks", commentRouter);
 app.use("/api/join-requests", joinRouter);
 app.use("/api/feedback", feedbackRouter);
 app.use("/api/admin", adminRouter);
+app.use("/api/chat", chatRouter);
 app.use("/api", memoryRouter);
 app.use("/api", blockerRouter);
 app.use("/api", handoffRouter);

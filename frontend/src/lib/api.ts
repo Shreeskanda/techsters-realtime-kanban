@@ -50,6 +50,9 @@ export const api = {
     get: (id: string) => request<Workspace>(`/workspaces/${id}`),
     create: (data: { name: string; description?: string }) =>
       request<Workspace>("/workspaces", { method: "POST", body: JSON.stringify(data) }),
+    delete: (id: string) =>
+      request<{ success: boolean; deletedId: string }>(`/workspaces/${id}`, { method: "DELETE" }),
+    assignableUsers: (id: string) => request<AssignableUser[]>(`/workspaces/${id}/assignable-users`),
     inviteMember: (id: string, data: { email: string; role: string }) =>
       request<WorkspaceMember>(`/workspaces/${id}/members`, {
         method: "POST",
@@ -219,6 +222,17 @@ export const api = {
     users: () => request<AdminUserStatus[]>("/admin/users"),
     activateUser: (id: string) => request<AdminUserStatus>(`/admin/users/${id}/activate`, { method: "PATCH" }),
     deactivateUser: (id: string) => request<AdminUserStatus>(`/admin/users/${id}/deactivate`, { method: "PATCH" }),
+  },
+  chat: {
+    ask: (data: {
+      message: string;
+      workspaceId?: string;
+      history?: { role: "user" | "assistant"; content: string }[];
+    }) =>
+      request<LocalChatReply>("/chat", {
+        method: "POST",
+        body: JSON.stringify(data),
+      }),
   },
 };
 
@@ -522,6 +536,30 @@ export interface ProjectFeedback {
   user: User;
   workspace?: { id: string; name: string };
   createdAt: string;
+}
+
+export interface AssignableUser {
+  id: string;
+  name: string;
+  email: string;
+  systemRole: "ADMIN" | "MEMBER";
+  currentRole: "ADMIN" | "MEMBER" | "VIEWER" | null;
+}
+
+export interface ChatContextLink {
+  label: string;
+  type: "workspace" | "task" | "admin-users";
+  workspaceId?: string;
+  boardId?: string;
+  taskId?: string;
+  tab?: "overview" | "memory" | "blockers" | "handoffs" | "activity";
+}
+
+export interface LocalChatReply {
+  reply: string;
+  mode: "local-engine" | "local-ollama";
+  contextLinks: ChatContextLink[];
+  suggestedPrompts: string[];
 }
 
 export interface AdminStats {

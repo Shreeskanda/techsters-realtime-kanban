@@ -1,12 +1,14 @@
 import React, { useState, useEffect, useCallback } from "react";
 import { api } from "../lib/api";
 import HealthPulse from "../components/HealthPulse";
+import AssignMembersModal from "../components/AssignMembersModal";
 import { formatDurationSince } from "../components/CollaborationWidgets";
 import type { Workspace, WorkspaceMember, ActivityLog, JoinRequest, TaskBlocker } from "../lib/api";
 
 interface Props {
   workspace: Workspace;
   onSelectBoard: (boardId: string) => void;
+  onDeletedWorkspace?: (workspaceId: string) => void;
   userRole: string;
   currentUserId: string;
 }
@@ -33,7 +35,13 @@ const ACTION_LABELS: Record<string, string> = {
   feedback_submitted: "submitted feedback",
 };
 
-export default function WorkspacePage({ workspace, onSelectBoard, userRole, currentUserId }: Props) {
+export default function WorkspacePage({
+  workspace,
+  onSelectBoard,
+  onDeletedWorkspace,
+  userRole,
+  currentUserId,
+}: Props) {
   const [ws, setWs] = useState<Workspace>(workspace);
   const [activity, setActivity] = useState<ActivityLog[]>([]);
   const [blockers, setBlockers] = useState<TaskBlocker[]>([]);
@@ -44,6 +52,8 @@ export default function WorkspacePage({ workspace, onSelectBoard, userRole, curr
   const [inviteStatus, setInviteStatus] = useState<{ ok: boolean; msg: string } | null>(null);
   const [newBoardName, setNewBoardName] = useState("");
   const [creatingBoard, setCreatingBoard] = useState(false);
+  const [showAssignModal, setShowAssignModal] = useState(false);
+  const [deletingWs, setDeletingWs] = useState(false);
 
   const loadWorkspace = useCallback(async () => {
     const [fullWs, logs, wsBlockers] = await Promise.all([
@@ -114,6 +124,17 @@ export default function WorkspacePage({ workspace, onSelectBoard, userRole, curr
     }
   };
 
+  const handleDeleteWorkspace = async () => {
+    if (!confirm(`Delete project "${ws.name}" and all its boards/tasks permanently?`)) return;
+    setDeletingWs(true);
+    try {
+      await api.workspaces.delete(ws.id);
+      onDeletedWorkspace?.(ws.id);
+    } finally {
+      setDeletingWs(false);
+    }
+  };
+
   return (
     <div className="page" style={{ maxWidth: 1080 }}>
       <div className="page-header">
@@ -124,14 +145,26 @@ export default function WorkspacePage({ workspace, onSelectBoard, userRole, curr
           </div>
           {ws.description && <p className="page-sub">{ws.description}</p>}
         </div>
-        {userRole !== "VIEWER" && (
-          <button
-            onClick={() => api.workspaces.export(ws.id).catch(console.error)}
-            className="btn btn-secondary"
-          >
-            Export Tasks CSV
-          </button>
-        )}
+        <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
+          {userRole !== "VIEWER" && (
+            <button
+              onClick={() => api.workspaces.export(ws.id).catch(console.error)}
+              className="btn btn-secondary"
+            >
+              Export Tasks CSV
+            </button>
+          )}
+          {userRole === "ADMIN" && (
+            <>
+              <button onClick={() => setShowAssignModal(true)} className="btn btn-primary">
+                Assign Members
+              </button>
+              <button onClick={handleDeleteWorkspace} disabled={deletingWs} className="btn btn-danger">
+                {deletingWs ? "Deleting..." : "Delete Project"}
+              </button>
+            </>
+          )}
+        </div>
       </div>
 
       <div style={{ display: "flex", flexDirection: "column", gap: 20 }}>
@@ -342,6 +375,18 @@ export default function WorkspacePage({ workspace, onSelectBoard, userRole, curr
           )}
         </div>
       </div>
+
+      {showAssignModal && (
+        <AssignMembersModal
+          workspaceId={ws.id}
+          workspaceName={ws.name}
+          currentUserId={currentUserId}
+          onClose={() => setShowAssignModal(false)}
+          onChanged={() => {
+            loadWorkspace();
+          }}
+        />
+      )}
     </div>
   );
 }

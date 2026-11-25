@@ -140,6 +140,7 @@ workspaceRouter.post("/:id/members", async (req: AuthRequest, res) => {
     const { email, role } = inviteMemberSchema.parse(req.body);
     const target = await prisma.user.findUnique({ where: { email: email.trim().toLowerCase() } });
     if (!target) return res.status(404).json({ error: "User not found" });
+    if (!target.isActive) return res.status(400).json({ error: "Cannot assign deactivated user account" });
 
     const existing = await prisma.workspaceMember.findUnique({
       where: { userId_workspaceId: { userId: target.id, workspaceId } },
@@ -148,7 +149,7 @@ workspaceRouter.post("/:id/members", async (req: AuthRequest, res) => {
 
     const membership = await prisma.workspaceMember.create({
       data: { userId: target.id, workspaceId, role },
-      include: { user: { select: { id: true, name: true, email: true } } },
+      include: { user: { select: { id: true, name: true, email: true, isActive: true } } },
     });
 
     // Clear any pending join request if one existed
@@ -166,12 +167,78 @@ workspaceRouter.post("/:id/members", async (req: AuthRequest, res) => {
       },
     });
 
-    getIO().to(workspaceId).emit("member_added", { member: membership });
+    getIO().to(workspaceId).to(`user:${target.id}`).emit("member_added", { member: membership, workspaceId });
     getIO().to(`user:${target.id}`).emit("join_request_approved", { userId: target.id, workspaceId });
     return res.status(201).json(membership);
   } catch (err: any) {
     if (err.name === "ZodError") return res.status(400).json({ error: "Validation error", details: err.errors });
     return res.status(500).json({ error: "Failed to invite member" });
+  }
+});
+
+// GET /api/workspaces/:id/assignable-users – active registered users for project assignment (Workspace ADMIN only)
+workspaceRouter.get("/:id/assignable-users", async (req: AuthRequest, res) => {
+  try {
+    const workspaceId = req.params.id as string;
+    const me = await prisma.workspaceMember.findUnique({
+      where: { userId_workspaceId: { userId: req.userId!, workspaceId } },
+    });
+    if (!me || me.role !== "ADMIN") return res.status(403).json({ error: "Only ADMINs can view assignable users" });
+
+    const [users, memberships] = await Promise.all([
+      prisma.user.findMany({
+        where: { isActive: true },
+        select: { id: true, name: true, email: true, systemRole: true },
+        orderBy: { name: "asc" },
+      }),
+      prisma.workspaceMember.findMany({
+        where: { workspaceId },
+        select: { userId: true, role: true },
+      }),
+    ]);
+
+    const roleMap = new Map(memberships.map((m) => [m.userId, m.role]));
+    const result = users.map((u) => ({
+      ...u,
+      currentRole: roleMap.get(u.id) || null,
+    }));
+    return res.json(result);
+  } catch {
+    return res.status(500).json({ error: "Failed to load assignable users" });
+  }
+});
+
+// DELETE /api/workspaces/:id – permanently delete project workspace (Workspace ADMIN only)
+workspaceRouter.delete("/:id", async (req: AuthRequest, res) => {
+  try {
+    const workspaceId = req.params.id as string;
+    const me = await prisma.workspaceMember.findUnique({
+      where: { userId_workspaceId: { userId: req.userId!, workspaceId } },
+    });
+    if (!me || me.role !== "ADMIN") return res.status(403).json({ error: "Only workspace ADMINs can delete a project" });
+
+    const workspace = await prisma.workspace.findUnique({
+      where: { id: workspaceId },
+      include: { members: { select: { userId: true } } },
+    });
+    if (!workspace) return res.status(404).json({ error: "Workspace not found" });
+
+    await prisma.workspace.delete({ where: { id: workspaceId } });
+
+    try {
+      let emitter = getIO().to(workspaceId).to("admin_lobby");
+      for (const m of workspace.members) {
+        emitter = emitter.to(`user:${m.userId}`);
+      }
+      emitter.emit("workspace_deleted", { workspaceId, workspaceName: workspace.name });
+    } catch {
+      // ignore if socket not initialized
+    }
+
+    return res.json({ success: true, deletedId: workspaceId });
+  } catch (err) {
+    console.error("Failed to delete workspace:", err);
+    return res.status(500).json({ error: "Failed to delete project" });
   }
 });
 
@@ -201,7 +268,7 @@ workspaceRouter.patch("/:id/members/:userId", async (req: AuthRequest, res) => {
       },
     });
 
-    getIO().to(workspaceId).emit("member_updated", { member: updated });
+    getIO().to(workspaceId).to(`user:${targetUserId}`).emit("member_updated", { member: updated, workspaceId });
     return res.json(updated);
   } catch (err: any) {
     if (err.name === "ZodError") return res.status(400).json({ error: "Validation error" });
@@ -222,7 +289,7 @@ workspaceRouter.delete("/:id/members/:userId", async (req: AuthRequest, res) => 
     await prisma.workspaceMember.delete({
       where: { userId_workspaceId: { userId: targetUserId, workspaceId } },
     });
-    getIO().to(workspaceId).emit("member_removed", { userId: targetUserId });
+    getIO().to(workspaceId).to(`user:${targetUserId}`).emit("member_removed", { userId: targetUserId, workspaceId });
     return res.json({ success: true });
   } catch {
     return res.status(500).json({ error: "Failed to remove member" });

@@ -14,7 +14,7 @@ import Layout from "./components/Layout";
 import type { NavPage } from "./components/Layout";
 import type { TaskModalTab } from "./components/TaskModal";
 import FeedbackModal from "./components/FeedbackModal";
-import type { Workspace } from "./lib/api";
+import type { ChatContextLink, Workspace } from "./lib/api";
 
 export default function App() {
   const { token, user, logout, showFeedbackPrompt, clearFeedbackPrompt } = useAuthStore();
@@ -59,21 +59,46 @@ export default function App() {
     loadPendingHandoffs();
   }, [token, user, loadPendingHandoffs, logout]);
 
-  // Real-time notifications for handoffs & forced account deactivation
+  // Real-time notifications for handoffs, workspaces & forced account deactivation
   useEffect(() => {
     if (!token || !user) return;
     const socket = connectSocket();
+    const refreshWorkspaces = () => {
+      api.workspaces
+        .list()
+        .then(setMyWorkspaces)
+        .catch(() => {});
+    };
     const refreshHandoffs = () => loadPendingHandoffs();
+    const onWorkspaceDeleted = ({ workspaceId }: { workspaceId: string }) => {
+      refreshWorkspaces();
+      setSelectedWorkspace((curr) => (curr?.id === workspaceId ? null : curr));
+      setSelectedBoard((curr) => (curr?.workspaceId === workspaceId ? null : curr));
+      setPage((currPage) => {
+        if (currPage === "workspace-detail" || currPage === "board") {
+          return user.systemRole === "ADMIN" ? "admin-lobby" : "member-lobby";
+        }
+        return currPage;
+      });
+    };
     const onDeactivated = () => {
       alert("Your account has been deactivated by an administrator.");
       logout();
     };
     socket.on("handoff_created", refreshHandoffs);
     socket.on("handoff_acknowledged", refreshHandoffs);
+    socket.on("workspace_deleted", onWorkspaceDeleted);
+    socket.on("member_added", refreshWorkspaces);
+    socket.on("member_removed", refreshWorkspaces);
+    socket.on("join_request_approved", refreshWorkspaces);
     socket.on("account_deactivated", onDeactivated);
     return () => {
       socket.off("handoff_created", refreshHandoffs);
       socket.off("handoff_acknowledged", refreshHandoffs);
+      socket.off("workspace_deleted", onWorkspaceDeleted);
+      socket.off("member_added", refreshWorkspaces);
+      socket.off("member_removed", refreshWorkspaces);
+      socket.off("join_request_approved", refreshWorkspaces);
       socket.off("account_deactivated", onDeactivated);
     };
   }, [token, user, loadPendingHandoffs, logout]);
@@ -183,6 +208,35 @@ export default function App() {
     );
   }
 
+  const handleWorkspaceListChanged = () => {
+    api.workspaces
+      .list()
+      .then(setMyWorkspaces)
+      .catch(() => {});
+  };
+
+  const handleDeletedWorkspace = (deletedId: string) => {
+    setMyWorkspaces((prev) => prev.filter((w) => w.id !== deletedId));
+    if (selectedWorkspace?.id === deletedId) setSelectedWorkspace(null);
+    if (selectedBoard?.workspaceId === deletedId) setSelectedBoard(null);
+    setPage(isSystemAdmin ? "admin-lobby" : "member-lobby");
+  };
+
+  const handleChatNavigate = (link: ChatContextLink) => {
+    if (link.type === "admin-users" && isSystemAdmin) {
+      setPage("admin-lobby");
+      return;
+    }
+    if (link.boardId && link.workspaceId) {
+      const ws = myWorkspaces.find((w) => w.id === link.workspaceId);
+      const bName = ws?.boards?.find((b) => b.id === link.boardId)?.name || "Board";
+      handleSelectBoard(link.boardId, link.workspaceId, bName, ws, link.taskId, link.tab);
+    } else if (link.workspaceId) {
+      const ws = myWorkspaces.find((w) => w.id === link.workspaceId);
+      if (ws) handleSelectWorkspace(ws);
+    }
+  };
+
   return (
     <Layout
       currentPage={page}
@@ -190,6 +244,9 @@ export default function App() {
       onSwitchPortal={() => setMemberPortalActive(true)}
       boardName={selectedBoard && page === "board" ? selectedBoard.name : undefined}
       workspaceName={selectedWorkspace?.name}
+      activeWorkspaceId={selectedWorkspace?.id || selectedBoard?.workspaceId}
+      workspaces={myWorkspaces}
+      onChatNavigate={handleChatNavigate}
       pendingRequestsCount={pendingCount}
       pendingHandoffsCount={pendingHandoffsCount}
     >
@@ -200,6 +257,8 @@ export default function App() {
             handleSelectBoard(bId, wsId, bName || "Board", wsObj, taskId, tabName)
           }
           onPendingCountChange={setPendingCount}
+          onWorkspaceListChanged={handleWorkspaceListChanged}
+          onDeletedWorkspace={handleDeletedWorkspace}
         />
       )}
 
@@ -209,6 +268,8 @@ export default function App() {
           onSelectBoard={(bId, wsId, bName, wsObj, taskId, tabName) =>
             handleSelectBoard(bId, wsId, bName || "Board", wsObj, taskId, tabName)
           }
+          onWorkspaceListChanged={handleWorkspaceListChanged}
+          onDeletedWorkspace={handleDeletedWorkspace}
         />
       )}
 
@@ -220,6 +281,8 @@ export default function App() {
             const board = ws?.boards.find((b) => b.id === bId);
             handleSelectBoard(bId, wsId, board?.name || "Board");
           }}
+          onWorkspaceListChanged={handleWorkspaceListChanged}
+          onDeletedWorkspace={handleDeletedWorkspace}
         />
       )}
 
@@ -230,6 +293,7 @@ export default function App() {
             const board = selectedWorkspace.boards.find((b) => b.id === bId);
             handleSelectBoard(bId, selectedWorkspace.id, board?.name || "Board");
           }}
+          onDeletedWorkspace={handleDeletedWorkspace}
           userRole={userRole}
           currentUserId={user.id}
         />

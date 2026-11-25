@@ -2,6 +2,7 @@ import React, { useState, useEffect } from "react";
 import { api } from "../lib/api";
 import { useAuthStore } from "../store/authStore";
 import CollaborationWidgets from "../components/CollaborationWidgets";
+import AssignMembersModal from "../components/AssignMembersModal";
 import type { TaskModalTab } from "../components/TaskModal";
 import type { Workspace } from "../lib/api";
 
@@ -15,9 +16,16 @@ interface Props {
     taskId?: string,
     initialTab?: TaskModalTab
   ) => void;
+  onWorkspaceListChanged?: () => void;
+  onDeletedWorkspace?: (workspaceId: string) => void;
 }
 
-export default function Dashboard({ onSelectWorkspace, onSelectBoard }: Props) {
+export default function Dashboard({
+  onSelectWorkspace,
+  onSelectBoard,
+  onWorkspaceListChanged,
+  onDeletedWorkspace,
+}: Props) {
   const user = useAuthStore((s) => s.user);
   const [workspaces, setWorkspaces] = useState<Workspace[]>([]);
   const [loading, setLoading] = useState(true);
@@ -25,12 +33,17 @@ export default function Dashboard({ onSelectWorkspace, onSelectBoard }: Props) {
   const [newWsName, setNewWsName] = useState("");
   const [newWsDesc, setNewWsDesc] = useState("");
   const [creating, setCreating] = useState(false);
+  const [assignTarget, setAssignTarget] = useState<Workspace | null>(null);
+  const [deletingId, setDeletingId] = useState<string | null>(null);
 
-  useEffect(() => {
+  const reloadWorkspaces = () =>
     api.workspaces
       .list()
       .then(setWorkspaces)
       .finally(() => setLoading(false));
+
+  useEffect(() => {
+    reloadWorkspaces();
   }, []);
 
   const handleCreate = async (e: React.FormEvent) => {
@@ -42,8 +55,21 @@ export default function Dashboard({ onSelectWorkspace, onSelectBoard }: Props) {
       setShowCreate(false);
       setNewWsName("");
       setNewWsDesc("");
+      onWorkspaceListChanged?.();
     } finally {
       setCreating(false);
+    }
+  };
+
+  const handleDelete = async (ws: Workspace) => {
+    if (!confirm(`Delete project "${ws.name}" permanently?`)) return;
+    setDeletingId(ws.id);
+    try {
+      await api.workspaces.delete(ws.id);
+      setWorkspaces((prev) => prev.filter((w) => w.id !== ws.id));
+      onDeletedWorkspace?.(ws.id);
+    } finally {
+      setDeletingId(null);
     }
   };
 
@@ -119,6 +145,24 @@ export default function Dashboard({ onSelectWorkspace, onSelectBoard }: Props) {
                         <span style={{ color: "var(--accent)" }}>Board →</span>
                       </button>
                     ))}
+                    {role === "ADMIN" && (
+                      <div style={{ display: "flex", gap: 6, marginTop: 4 }}>
+                        <button
+                          className="btn btn-secondary btn-sm"
+                          style={{ flex: 1, justifyContent: "center" }}
+                          onClick={() => setAssignTarget(ws)}
+                        >
+                          Assign Members
+                        </button>
+                        <button
+                          className="btn btn-danger btn-sm"
+                          disabled={deletingId === ws.id}
+                          onClick={() => handleDelete(ws)}
+                        >
+                          {deletingId === ws.id ? "..." : "Delete"}
+                        </button>
+                      </div>
+                    )}
                   </div>
                 </div>
               );
@@ -177,6 +221,18 @@ export default function Dashboard({ onSelectWorkspace, onSelectBoard }: Props) {
             </form>
           </div>
         </div>
+      )}
+      {assignTarget && (
+        <AssignMembersModal
+          workspaceId={assignTarget.id}
+          workspaceName={assignTarget.name}
+          currentUserId={user?.id || ""}
+          onClose={() => setAssignTarget(null)}
+          onChanged={() => {
+            reloadWorkspaces();
+            onWorkspaceListChanged?.();
+          }}
+        />
       )}
     </div>
   );

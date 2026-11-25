@@ -4,6 +4,7 @@ import { connectSocket } from "../lib/socket";
 import { useAuthStore } from "../store/authStore";
 import JoinRequestModal from "../components/JoinRequestModal";
 import CollaborationWidgets from "../components/CollaborationWidgets";
+import AssignMembersModal from "../components/AssignMembersModal";
 import type { TaskModalTab } from "../components/TaskModal";
 import type { PublicWorkspace, Workspace, JoinRequest } from "../lib/api";
 
@@ -17,11 +18,18 @@ interface Props {
     taskId?: string,
     initialTab?: TaskModalTab
   ) => void;
+  onWorkspaceListChanged?: () => void;
+  onDeletedWorkspace?: (workspaceId: string) => void;
 }
 
 type LobbyTab = "my-projects" | "pulse" | "directory" | "requests";
 
-export default function MemberLobby({ onSelectWorkspace, onSelectBoard }: Props) {
+export default function MemberLobby({
+  onSelectWorkspace,
+  onSelectBoard,
+  onWorkspaceListChanged,
+  onDeletedWorkspace,
+}: Props) {
   const user = useAuthStore((s) => s.user);
   const [tab, setTab] = useState<LobbyTab>("my-projects");
   const [publicProjects, setPublicProjects] = useState<PublicWorkspace[]>([]);
@@ -31,12 +39,14 @@ export default function MemberLobby({ onSelectWorkspace, onSelectBoard }: Props)
   const [loading, setLoading] = useState(true);
   const [notice, setNotice] = useState("");
 
-  // Create Project Modal
+  // Create / Assign / Delete state
   const [showCreate, setShowCreate] = useState(false);
   const [newName, setNewName] = useState("");
   const [newDesc, setNewDesc] = useState("");
   const [creating, setCreating] = useState(false);
   const [createErr, setCreateErr] = useState("");
+  const [assignTarget, setAssignTarget] = useState<Workspace | null>(null);
+  const [deletingId, setDeletingId] = useState<string | null>(null);
 
   // Join Request Modal
   const [requestTarget, setRequestTarget] = useState<PublicWorkspace | null>(null);
@@ -79,10 +89,16 @@ export default function MemberLobby({ onSelectWorkspace, onSelectBoard }: Props)
     socket.on("join_request_approved", onApproved);
     socket.on("join_request_rejected", onRejected);
     socket.on("handoff_created", onHandoff);
+    socket.on("workspace_deleted", loadLobby);
+    socket.on("member_added", loadLobby);
+    socket.on("member_removed", loadLobby);
     return () => {
       socket.off("join_request_approved", onApproved);
       socket.off("join_request_rejected", onRejected);
       socket.off("handoff_created", onHandoff);
+      socket.off("workspace_deleted", loadLobby);
+      socket.off("member_added", loadLobby);
+      socket.off("member_removed", loadLobby);
     };
   }, [loadLobby]);
 
@@ -100,11 +116,27 @@ export default function MemberLobby({ onSelectWorkspace, onSelectBoard }: Props)
       setNewDesc("");
       setShowCreate(false);
       await loadLobby();
+      onWorkspaceListChanged?.();
       onSelectWorkspace(ws);
     } catch (err: unknown) {
       setCreateErr(err instanceof Error ? err.message : "Failed to create project");
     } finally {
       setCreating(false);
+    }
+  };
+
+  const handleDeleteProject = async (ws: Workspace) => {
+    if (!confirm(`Delete project "${ws.name}" and all its boards/tasks permanently?`)) return;
+    setDeletingId(ws.id);
+    try {
+      await api.workspaces.delete(ws.id);
+      await loadLobby();
+      onDeletedWorkspace?.(ws.id);
+      setNotice(`Deleted project "${ws.name}".`);
+    } catch (err: unknown) {
+      setNotice(err instanceof Error ? err.message : "Failed to delete project");
+    } finally {
+      setDeletingId(null);
     }
   };
 
@@ -288,6 +320,24 @@ export default function MemberLobby({ onSelectWorkspace, onSelectBoard }: Props)
                       >
                         Manage Workspace
                       </button>
+                      {role === "ADMIN" && (
+                        <div style={{ display: "flex", gap: 6, marginTop: 2 }}>
+                          <button
+                            className="btn btn-secondary btn-sm"
+                            style={{ flex: 1, justifyContent: "center" }}
+                            onClick={() => setAssignTarget(ws)}
+                          >
+                            Assign Members
+                          </button>
+                          <button
+                            className="btn btn-danger btn-sm"
+                            disabled={deletingId === ws.id}
+                            onClick={() => handleDeleteProject(ws)}
+                          >
+                            {deletingId === ws.id ? "..." : "Delete"}
+                          </button>
+                        </div>
+                      )}
                     </div>
                   </div>
                 );
@@ -488,6 +538,20 @@ export default function MemberLobby({ onSelectWorkspace, onSelectBoard }: Props)
             setMyRequests((prev) => [req, ...prev.filter((r) => r.workspace.id !== req.workspace.id)]);
             setNotice(`Join request sent to Admin for "${requestTarget.name}".`);
             setRequestTarget(null);
+          }}
+        />
+      )}
+
+      {/* Assign Members Modal */}
+      {assignTarget && (
+        <AssignMembersModal
+          workspaceId={assignTarget.id}
+          workspaceName={assignTarget.name}
+          currentUserId={user?.id || ""}
+          onClose={() => setAssignTarget(null)}
+          onChanged={() => {
+            loadLobby();
+            onWorkspaceListChanged?.();
           }}
         />
       )}

@@ -3,6 +3,7 @@ import { api } from "../lib/api";
 import { connectSocket, disconnectSocket } from "../lib/socket";
 import { useAuthStore } from "../store/authStore";
 import JoinRequestModal from "../components/JoinRequestModal";
+import AssignMembersModal from "../components/AssignMembersModal";
 import type { PublicWorkspace, Workspace, JoinRequest } from "../lib/api";
 
 interface Props {
@@ -22,6 +23,23 @@ export default function ProjectPortal({ onEnterWorkspace }: Props) {
   const [newWsName, setNewWsName] = useState("");
   const [newWsDesc, setNewWsDesc] = useState("");
   const [creating, setCreating] = useState(false);
+  const [assignTarget, setAssignTarget] = useState<Workspace | null>(null);
+  const [deletingId, setDeletingId] = useState<string | null>(null);
+
+  const handleDeleteProject = async (e: React.MouseEvent, ws: Workspace) => {
+    e.stopPropagation();
+    if (!confirm(`Delete project "${ws.name}" permanently?`)) return;
+    setDeletingId(ws.id);
+    try {
+      await api.workspaces.delete(ws.id);
+      await loadPortal();
+      setNotice(`Deleted project "${ws.name}".`);
+    } catch (err: unknown) {
+      setNotice(err instanceof Error ? err.message : "Failed to delete project");
+    } finally {
+      setDeletingId(null);
+    }
+  };
 
   const handleCreateProject = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -224,13 +242,37 @@ export default function ProjectPortal({ onEnterWorkspace }: Props) {
                             </p>
                           </div>
 
-                          <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", paddingTop: 10, borderTop: "1px solid var(--border-subtle)" }}>
+                          <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", paddingTop: 10, borderTop: "1px solid var(--border-subtle)", gap: 6, flexWrap: "wrap" }}>
                             <span style={{ fontSize: 12, color: "var(--text-secondary)" }}>
                               {ws._count?.boards ?? ws.boards?.length ?? 0} boards · {ws._count?.members ?? ws.members?.length ?? 0} members
                             </span>
-                            <span style={{ fontSize: 12.5, fontWeight: 600, color: "var(--accent)" }}>
-                              Login to Project →
-                            </span>
+                            <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
+                              {role === "ADMIN" && (
+                                <>
+                                  <button
+                                    type="button"
+                                    className="btn btn-secondary btn-sm"
+                                    onClick={(e) => {
+                                      e.stopPropagation();
+                                      setAssignTarget(ws);
+                                    }}
+                                  >
+                                    Assign
+                                  </button>
+                                  <button
+                                    type="button"
+                                    className="btn btn-danger btn-sm"
+                                    disabled={deletingId === ws.id}
+                                    onClick={(e) => handleDeleteProject(e, ws)}
+                                  >
+                                    {deletingId === ws.id ? "..." : "Delete"}
+                                  </button>
+                                </>
+                              )}
+                              <span style={{ fontSize: 12.5, fontWeight: 600, color: "var(--accent)" }}>
+                                Enter →
+                              </span>
+                            </div>
                           </div>
                         </div>
                       );
@@ -365,6 +407,16 @@ export default function ProjectPortal({ onEnterWorkspace }: Props) {
             setNotice(`Join request sent to Admin for "${requestTarget.name}".`);
             setRequestTarget(null);
           }}
+        />
+      )}
+
+      {assignTarget && (
+        <AssignMembersModal
+          workspaceId={assignTarget.id}
+          workspaceName={assignTarget.name}
+          currentUserId={user?.id || ""}
+          onClose={() => setAssignTarget(null)}
+          onChanged={loadPortal}
         />
       )}
     </div>

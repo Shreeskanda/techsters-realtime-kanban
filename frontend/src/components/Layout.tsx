@@ -1,6 +1,8 @@
-import React from "react";
+import React, { useState } from "react";
 import { useAuthStore } from "../store/authStore";
 import { disconnectSocket } from "../lib/socket";
+import LocalChatbot from "./LocalChatbot";
+import type { ChatContextLink, Workspace } from "../lib/api";
 
 export type NavPage = "admin-lobby" | "member-lobby" | "workspaces" | "workspace-detail" | "board";
 
@@ -10,6 +12,9 @@ interface Props {
   onSwitchPortal?: () => void;
   boardName?: string;
   workspaceName?: string;
+  activeWorkspaceId?: string;
+  workspaces?: Workspace[];
+  onChatNavigate?: (link: ChatContextLink) => void;
   pendingRequestsCount?: number;
   pendingHandoffsCount?: number;
   children: React.ReactNode;
@@ -22,11 +27,15 @@ export default function Layout({
   onSwitchPortal,
   boardName,
   workspaceName,
+  activeWorkspaceId,
+  workspaces = [],
+  onChatNavigate,
   pendingRequestsCount = 0,
   pendingHandoffsCount = 0,
 }: Props) {
   const { user, logout, openFeedbackPrompt } = useAuthStore();
   const isSystemAdmin = user?.systemRole === "ADMIN";
+  const [chatOpen, setChatOpen] = useState(false);
 
   const handleLogout = () => {
     disconnectSocket();
@@ -130,6 +139,10 @@ export default function Layout({
 
         <div className="nav-section">
           <div className="nav-label">Engagement</div>
+          <button onClick={() => setChatOpen((o) => !o)} className={`nav-btn ${chatOpen ? "active" : ""}`}>
+            <span className="icon">💬</span>
+            <span>Local Assistant</span>
+          </button>
           <button onClick={openFeedbackPrompt} className="nav-btn">
             <span className="icon">★</span>
             <span>Give Feedback</span>
@@ -194,6 +207,12 @@ export default function Layout({
             <div className="live-pill">
               <span className="live-dot" /> Real-Time Sync
             </div>
+            <button
+              className={`btn btn-sm ${chatOpen ? "btn-primary" : "btn-secondary"}`}
+              onClick={() => setChatOpen((o) => !o)}
+            >
+              💬 Assistant
+            </button>
             <button className="btn btn-secondary btn-sm" onClick={openFeedbackPrompt}>
               ★ Feedback
             </button>
@@ -202,6 +221,17 @@ export default function Layout({
 
         <div style={{ flex: 1, display: "flex", flexDirection: "column" }}>{children}</div>
       </main>
+
+      <LocalChatbot
+        workspaces={workspaces}
+        activeWorkspaceId={activeWorkspaceId}
+        isSystemAdmin={isSystemAdmin}
+        isOpen={chatOpen}
+        onToggle={() => setChatOpen((o) => !o)}
+        onNavigateLink={(lnk) => {
+          onChatNavigate?.(lnk);
+        }}
+      />
     </div>
   );
 }

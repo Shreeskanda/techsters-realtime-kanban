@@ -308,15 +308,80 @@ export async function runTechSters2Tests() {
   const deactRes = await req(`/admin/users/${viewerId}/deactivate`, { method: "PATCH", token: adminToken });
   const deactivatedLogin = await req("/auth/login", { method: "POST", body: { email: viewerEmail, password: pass } });
   const deactivatedApi = await req(`/tasks/${taskId}/memory`, { token: viewerToken });
+
+  // Assigning deactivated user must fail with 400
+  const assignDeactRes = await req(`/workspaces/${wsId}/members`, {
+    method: "POST",
+    token: adminToken,
+    body: { email: viewerEmail, role: "MEMBER" },
+  });
+
   const reactRes = await req(`/admin/users/${viewerId}/activate`, { method: "PATCH", token: adminToken });
   const reactivatedLogin = await req("/auth/login", { method: "POST", body: { email: viewerEmail, password: pass } });
   check(
     deactRes.status === 200 &&
       deactivatedLogin.status === 403 &&
       deactivatedApi.status === 403 &&
+      assignDeactRes.status === 400 &&
       reactRes.status === 200 &&
       reactivatedLogin.status === 200,
     "Admin can deactivate and reactivate user accounts with server-side enforcement"
+  );
+
+  // Assignable Users Picker RBAC
+  const [assignableAdmin, assignableMember] = await Promise.all([
+    req(`/workspaces/${wsId}/assignable-users`, { token: adminToken }),
+    req(`/workspaces/${wsId}/assignable-users`, { token: memberToken }),
+  ]);
+  check(
+    assignableAdmin.status === 200 &&
+      Array.isArray(assignableAdmin.data) &&
+      assignableAdmin.data.some((u: any) => u.email === outsiderEmail && u.currentRole === null) &&
+      assignableMember.status === 403,
+    "Workspace Admin sees assignable users picker while non-admin receives 403"
+  );
+
+  // Local Chatbot RBAC & Privacy Isolation
+  const silentBlkForChat = await req(`/tasks/${taskId}/blockers`, {
+    method: "POST",
+    token: memberToken,
+    body: {
+      type: "STUCK",
+      severity: "HIGH",
+      privacy: "REPORTER_AND_ADMINS",
+      explanation: "UltraSecretChatBlockerToken",
+    },
+  });
+  const [chatAdminHealth, chatAdminBlockers, chatViewerBlockers, chatOutsider] = await Promise.all([
+    req("/chat", { method: "POST", token: adminToken, body: { message: "Project health summary", workspaceId: wsId } }),
+    req("/chat", { method: "POST", token: adminToken, body: { message: "Show open blockers", workspaceId: wsId } }),
+    req("/chat", { method: "POST", token: viewerToken, body: { message: "Show open blockers", workspaceId: wsId } }),
+    req("/chat", { method: "POST", token: outsiderToken, body: { message: "Show open blockers", workspaceId: wsId } }),
+  ]);
+  check(
+    silentBlkForChat.status === 201 &&
+      chatAdminHealth.status === 200 &&
+      chatAdminHealth.data?.mode === "local-engine" &&
+      chatAdminBlockers.data?.reply?.includes("UltraSecretChatBlockerToken") &&
+      chatViewerBlockers.status === 200 &&
+      !chatViewerBlockers.data?.reply?.includes("UltraSecretChatBlockerToken") &&
+      chatOutsider.status === 403,
+    "Local Chatbot enforces workspace isolation (403) and Silent Blocker privacy"
+  );
+
+  // Delete Project RBAC & Cascade Verification
+  const [delMember, delViewer] = await Promise.all([
+    req(`/workspaces/${wsId}`, { method: "DELETE", token: memberToken }),
+    req(`/workspaces/${wsId}`, { method: "DELETE", token: viewerToken }),
+  ]);
+  const delAdmin = await req(`/workspaces/${wsId}`, { method: "DELETE", token: adminToken });
+  const getAfterDel = await req(`/workspaces/${wsId}`, { token: adminToken });
+  check(
+    delMember.status === 403 &&
+      delViewer.status === 403 &&
+      delAdmin.status === 200 &&
+      (getAfterDel.status === 403 || getAfterDel.status === 404),
+    "Delete project allowed only for workspace ADMIN and removes workspace cleanly"
   );
 
   console.log(`==================================================`);
