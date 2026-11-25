@@ -27,6 +27,26 @@ export function setupSocketIO(io: SocketIOServer) {
 
   io.on("connection", (socket: AuthSocket) => {
     console.log(`🔌 Socket connected: ${socket.id} (user: ${socket.userId})`);
+    if (socket.userId) {
+      socket.join(`user:${socket.userId}`);
+    }
+
+    // Join all admin workspace rooms so Admin Lobby receives live updates
+    socket.on("join_admin_lobby", async () => {
+      try {
+        if (!socket.userId) return;
+        const adminMemberships = await prisma.workspaceMember.findMany({
+          where: { userId: socket.userId, role: "ADMIN" },
+          select: { workspaceId: true },
+        });
+        for (const m of adminMemberships) {
+          socket.join(m.workspaceId);
+        }
+        socket.emit("admin_lobby_joined", { workspaceIds: adminMemberships.map((m) => m.workspaceId) });
+      } catch {
+        socket.emit("error", { message: "Failed to join admin lobby" });
+      }
+    });
 
     // Join a workspace room (after verifying membership)
     socket.on("join_workspace", async ({ workspaceId }: { workspaceId: string }) => {

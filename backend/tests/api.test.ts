@@ -74,7 +74,7 @@ async function runTests() {
     });
     const workspaces = await wsRes.json();
     assert(Array.isArray(workspaces) && workspaces.length > 0, "Admin can list workspaces");
-    const ws = workspaces[0];
+    const ws = workspaces.find((w: any) => w.slug === "techsters-avishkar26") || workspaces[0];
 
     // 7. Get Board & Columns
     const boardId = ws.boards[0].id;
@@ -174,6 +174,87 @@ async function runTests() {
       headers: { Authorization: `Bearer ${adminToken}` },
     });
     assert(delRes.status === 200, "Admin can delete tasks");
+
+    // 17. Email check endpoint (smart first-time vs returning flow)
+    const checkExistRes = await fetch(`${BASE}/auth/check-email`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ email: "bob@techsters.dev" }),
+    });
+    const checkExist = await checkExistRes.json();
+    assert(checkExist.exists === true, "Check-email detects returning user");
+
+    const checkNewRes = await fetch(`${BASE}/auth/check-email`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ email: `never-seen-${Date.now()}@techsters.dev` }),
+    });
+    const checkNew = await checkNewRes.json();
+    assert(checkNew.exists === false, "Check-email detects first-time user");
+
+    // 18. Only System Admin can create projects
+    const memberCreateWs = await fetch(`${BASE}/workspaces`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json", Authorization: `Bearer ${memberToken}` },
+      body: JSON.stringify({ name: "Unauthorized Project" }),
+    });
+    assert(memberCreateWs.status === 403, "Non-admin member CANNOT create projects (403 Forbidden)");
+
+    // 19. Public workspace directory & join request flow
+    const pubRes = await fetch(`${BASE}/workspaces/public`, {
+      headers: { Authorization: `Bearer ${regData.token}` },
+    });
+    const pubProjects = await pubRes.json();
+    const alphaWs = pubProjects.find((p: any) => p.slug === "enterprise-alpha") || pubProjects[0];
+    assert(Array.isArray(pubProjects) && pubProjects.length > 0 && !!alphaWs, "Public project directory returns projects");
+
+    const reqRes = await fetch(`${BASE}/join-requests/${alphaWs.id}`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json", Authorization: `Bearer ${regData.token}` },
+      body: JSON.stringify({ message: "Please grant automated test user access" }),
+    });
+    const joinReq = await reqRes.json();
+    assert(reqRes.status === 201 && joinReq.status === "PENDING", "Uninvited member submitting join request sends PENDING request to Admin");
+
+    // 20. Admin sees pending join request and approves it
+    const adminStatsBeforeRes = await fetch(`${BASE}/admin/stats`, {
+      headers: { Authorization: `Bearer ${adminToken}` },
+    });
+    const adminStatsBefore = await adminStatsBeforeRes.json();
+    assert(
+      adminStatsBefore.pendingJoinRequests?.some((r: any) => r.id === joinReq.id),
+      "Admin lobby sees pending join request"
+    );
+
+    const approveRes = await fetch(`${BASE}/join-requests/${joinReq.id}`, {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json", Authorization: `Bearer ${adminToken}` },
+      body: JSON.stringify({ action: "APPROVED", role: "MEMBER" }),
+    });
+    assert(approveRes.status === 200, "Admin can approve join request");
+
+    // 21. Approved member submits feedback & Admin panel displays it
+    const fbRes = await fetch(`${BASE}/feedback`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json", Authorization: `Bearer ${regData.token}` },
+      body: JSON.stringify({
+        workspaceId: alphaWs.id,
+        rating: 5,
+        category: "UX_DESIGN",
+        message: "Enterprise dark portal works great!",
+      }),
+    });
+    assert(fbRes.status === 201, "User can submit project feedback");
+
+    const adminStatsAfterRes = await fetch(`${BASE}/admin/stats`, {
+      headers: { Authorization: `Bearer ${adminToken}` },
+    });
+    const adminStatsAfter = await adminStatsAfterRes.json();
+    assert(
+      adminStatsAfter.feedbacks?.some((f: any) => f.message === "Enterprise dark portal works great!") &&
+        adminStatsAfter.recentActivity?.length > 0,
+      "Admin lobby displays project feedback and audit log history"
+    );
 
     console.log("==================================================");
     console.log(`Results: ${passed} PASSED, ${failed} FAILED`);
