@@ -2,7 +2,7 @@ import { Router } from "express";
 import { z } from "zod";
 import { prisma } from "../lib/prisma";
 import { authenticate, AuthRequest } from "../middleware/auth";
-import { io } from "../server";
+import { getIO } from "../lib/io";
 
 export const taskRouter = Router();
 
@@ -55,7 +55,7 @@ taskRouter.post("/", async (req: AuthRequest, res) => {
       data: { action: "task_created", userId: req.userId!, workspaceId, taskId: task.id, details: { title: task.title } },
     });
 
-    io.to(workspaceId).emit("task_created", { task, workspaceId });
+    getIO().to(workspaceId).emit("task_created", { task, workspaceId });
     return res.status(201).json(task);
   } catch (err: any) {
     if (err.name === "ZodError") return res.status(400).json({ error: "Validation error", details: err.errors });
@@ -99,7 +99,7 @@ taskRouter.patch("/:id", async (req: AuthRequest, res) => {
     });
 
     const event = isMoved ? "task_moved" : "task_updated";
-    io.to(workspaceId).emit(event, { task, workspaceId });
+    getIO().to(workspaceId).emit(event, { task, workspaceId });
     return res.json(task);
   } catch (err: any) {
     if (err.name === "ZodError") return res.status(400).json({ error: "Validation error", details: err.errors });
@@ -128,7 +128,7 @@ taskRouter.delete("/:id", async (req: AuthRequest, res) => {
       data: { action: "task_deleted", userId: req.userId!, workspaceId, details: { title: existing.title } },
     });
 
-    io.to(workspaceId).emit("task_deleted", { taskId, workspaceId });
+    getIO().to(workspaceId).emit("task_deleted", { taskId, workspaceId });
     return res.json({ success: true });
   } catch {
     return res.status(500).json({ error: "Failed to delete task" });

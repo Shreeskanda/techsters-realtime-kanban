@@ -1,16 +1,19 @@
 import { io, Socket } from "socket.io-client";
 import { getToken } from "./api";
 
-const SOCKET_URL = import.meta.env.VITE_SOCKET_URL || "http://localhost:5000";
+const SOCKET_URL =
+  import.meta.env.VITE_SOCKET_URL || (import.meta.env.PROD ? undefined : "http://localhost:5000");
 
 let socket: Socket | null = null;
 
 export function getSocket(): Socket {
   if (!socket) {
-    socket = io(SOCKET_URL, {
+    const opts = {
       auth: { token: getToken() },
+      transports: import.meta.env.PROD ? ["websocket"] : ["websocket", "polling"],
       autoConnect: false,
-    });
+    };
+    socket = SOCKET_URL ? io(SOCKET_URL, opts) : io(opts);
   }
   return socket;
 }

@@ -1,5 +1,6 @@
 // API Client – TechSters Collaborative Kanban
-const BASE = import.meta.env.VITE_API_URL || "http://localhost:5000/api";
+const BASE =
+  import.meta.env.VITE_API_URL || (import.meta.env.PROD ? "/api" : "http://localhost:5000/api");
 
 export function getToken() {
   return localStorage.getItem("tk_token");

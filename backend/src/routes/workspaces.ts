@@ -2,7 +2,7 @@ import { Router } from "express";
 import { z } from "zod";
 import { prisma } from "../lib/prisma";
 import { authenticate, AuthRequest } from "../middleware/auth";
-import { io } from "../server";
+import { getIO } from "../lib/io";
 
 export const workspaceRouter = Router();
 
@@ -174,8 +174,8 @@ workspaceRouter.post("/:id/members", async (req: AuthRequest, res) => {
       },
     });
 
-    io.to(workspaceId).emit("member_added", { member: membership });
-    io.to(`user:${target.id}`).emit("join_request_approved", { userId: target.id, workspaceId });
+    getIO().to(workspaceId).emit("member_added", { member: membership });
+    getIO().to(`user:${target.id}`).emit("join_request_approved", { userId: target.id, workspaceId });
     return res.status(201).json(membership);
   } catch (err: any) {
     if (err.name === "ZodError") return res.status(400).json({ error: "Validation error", details: err.errors });
@@ -209,7 +209,7 @@ workspaceRouter.patch("/:id/members/:userId", async (req: AuthRequest, res) => {
       },
     });
 
-    io.to(workspaceId).emit("member_updated", { member: updated });
+    getIO().to(workspaceId).emit("member_updated", { member: updated });
     return res.json(updated);
   } catch (err: any) {
     if (err.name === "ZodError") return res.status(400).json({ error: "Validation error" });
@@ -230,7 +230,7 @@ workspaceRouter.delete("/:id/members/:userId", async (req: AuthRequest, res) => 
     await prisma.workspaceMember.delete({
       where: { userId_workspaceId: { userId: targetUserId, workspaceId } },
     });
-    io.to(workspaceId).emit("member_removed", { userId: targetUserId });
+    getIO().to(workspaceId).emit("member_removed", { userId: targetUserId });
     return res.json({ success: true });
   } catch {
     return res.status(500).json({ error: "Failed to remove member" });

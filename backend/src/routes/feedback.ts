@@ -2,7 +2,7 @@ import { Router } from "express";
 import { z } from "zod";
 import { prisma } from "../lib/prisma";
 import { authenticate, AuthRequest } from "../middleware/auth";
-import { io } from "../server";
+import { getIO } from "../lib/io";
 
 export const feedbackRouter = Router();
 feedbackRouter.use(authenticate);
@@ -39,13 +39,13 @@ feedbackRouter.post("/", async (req: AuthRequest, res) => {
       },
     });
 
-    io.to(workspaceId).emit("feedback_received", { feedback });
+    getIO().to(workspaceId).emit("feedback_received", { feedback });
     const admins = await prisma.workspaceMember.findMany({
       where: { workspaceId, role: "ADMIN" },
       select: { userId: true },
     });
     for (const admin of admins) {
-      io.to(`user:${admin.userId}`).emit("feedback_received", { feedback });
+      getIO().to(`user:${admin.userId}`).emit("feedback_received", { feedback });
     }
 
     return res.status(201).json(feedback);

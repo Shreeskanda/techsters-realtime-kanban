@@ -2,7 +2,7 @@ import { Router } from "express";
 import { z } from "zod";
 import { prisma } from "../lib/prisma";
 import { authenticate, AuthRequest } from "../middleware/auth";
-import { io } from "../server";
+import { getIO } from "../lib/io";
 
 export const joinRouter = Router();
 joinRouter.use(authenticate);
@@ -62,13 +62,13 @@ joinRouter.post("/:workspaceId", async (req: AuthRequest, res) => {
     });
 
     // Notify workspace room and all workspace admins directly
-    io.to(workspaceId).emit("join_request_received", { request });
+    getIO().to(workspaceId).emit("join_request_received", { request });
     const admins = await prisma.workspaceMember.findMany({
       where: { workspaceId, role: "ADMIN" },
       select: { userId: true },
     });
     for (const admin of admins) {
-      io.to(`user:${admin.userId}`).emit("join_request_received", { request });
+      getIO().to(`user:${admin.userId}`).emit("join_request_received", { request });
     }
 
     return res.status(201).json(request);
@@ -150,12 +150,12 @@ joinRouter.patch("/:id", async (req: AuthRequest, res) => {
         },
       });
 
-      io.to(request.workspaceId).emit("member_added", { member: membership });
-      io.to(request.workspaceId).emit("join_request_approved", {
+      getIO().to(request.workspaceId).emit("member_added", { member: membership });
+      getIO().to(request.workspaceId).emit("join_request_approved", {
         userId: request.userId,
         workspaceId: request.workspaceId,
       });
-      io.to(`user:${request.userId}`).emit("join_request_approved", {
+      getIO().to(`user:${request.userId}`).emit("join_request_approved", {
         userId: request.userId,
         workspaceId: request.workspaceId,
       });
@@ -168,7 +168,7 @@ joinRouter.patch("/:id", async (req: AuthRequest, res) => {
           details: { userName: request.user.name },
         },
       });
-      io.to(`user:${request.userId}`).emit("join_request_rejected", {
+      getIO().to(`user:${request.userId}`).emit("join_request_rejected", {
         userId: request.userId,
         workspaceId: request.workspaceId,
       });

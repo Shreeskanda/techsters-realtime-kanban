@@ -16,22 +16,48 @@ import { joinRouter } from "./routes/joinRequests";
 import { feedbackRouter } from "./routes/feedback";
 import { adminRouter } from "./routes/admin";
 import { setupSocketIO } from "./socket";
+import { setIO } from "./lib/io";
 
 dotenv.config();
 
 const app = express();
 const httpServer = createServer(app);
 
-export const io = new SocketIOServer(httpServer, {
+const allowedOrigins = new Set(
+  [
+    process.env.CLIENT_URL,
+    process.env.VERCEL_URL ? `https://${process.env.VERCEL_URL}` : undefined,
+    process.env.VERCEL_BRANCH_URL ? `https://${process.env.VERCEL_BRANCH_URL}` : undefined,
+    process.env.VERCEL_PROJECT_PRODUCTION_URL
+      ? `https://${process.env.VERCEL_PROJECT_PRODUCTION_URL}`
+      : undefined,
+    "http://localhost:5173",
+  ].filter(Boolean) as string[]
+);
+
+const corsOrigin = (origin: string | undefined, callback: (err: Error | null, allow?: boolean) => void) => {
+  if (
+    !origin ||
+    allowedOrigins.has(origin) ||
+    /^https:\/\/techsters-realtime-kanban[a-z0-9-]*\.vercel\.app$/.test(origin) ||
+    origin.startsWith("http://localhost:")
+  ) {
+    return callback(null, true);
+  }
+  return callback(new Error("CORS origin not allowed"));
+};
+
+const io = new SocketIOServer(httpServer, {
   cors: {
-    origin: process.env.CLIENT_URL || "http://localhost:5173",
+    origin: corsOrigin,
     credentials: true,
   },
 });
+setIO(io);
 
 // Middleware
 app.use(helmet());
-app.use(cors({ origin: process.env.CLIENT_URL || "http://localhost:5173", credentials: true }));
+app.use(cors({ origin: corsOrigin, credentials: true }));
 app.use(express.json());
 
 // Health check
@@ -66,7 +92,11 @@ app.use((_req: Request, res: Response) => {
 setupSocketIO(io);
 
 const PORT = Number(process.env.PORT) || 5000;
-httpServer.listen(PORT, () => {
-  console.log(`🚀 TechSters Kanban Server running on port ${PORT}`);
-  console.log(`📡 Socket.IO enabled`);
-});
+if (!process.env.VERCEL) {
+  httpServer.listen(PORT, () => {
+    console.log(`🚀 TechSters Kanban Server running on port ${PORT}`);
+    console.log(`📡 Socket.IO enabled`);
+  });
+}
+
+export default httpServer;

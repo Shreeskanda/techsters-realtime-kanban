@@ -2,7 +2,7 @@ import { Router } from "express";
 import { z } from "zod";
 import { prisma } from "../lib/prisma";
 import { authenticate, AuthRequest } from "../middleware/auth";
-import { io } from "../server";
+import { getIO } from "../lib/io";
 
 export const commentRouter = Router();
 
@@ -36,7 +36,7 @@ commentRouter.post("/:id/comments", async (req: AuthRequest, res) => {
       data: { action: "comment_added", userId: req.userId!, workspaceId, taskId, details: { content } },
     });
 
-    io.to(workspaceId).emit("new_comment", { comment, taskId, workspaceId });
+    getIO().to(workspaceId).emit("new_comment", { comment, taskId, workspaceId });
     return res.status(201).json(comment);
   } catch (err: any) {
     if (err.name === "ZodError") return res.status(400).json({ error: "Validation error", details: err.errors });

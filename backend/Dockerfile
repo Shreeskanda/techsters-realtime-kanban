@@ -9,7 +9,7 @@ COPY prisma ./prisma
 RUN npx prisma generate
 
 COPY src ./src
-RUN npm run build
+RUN npm run build:docker
 
 FROM node:20-alpine AS runner
 
