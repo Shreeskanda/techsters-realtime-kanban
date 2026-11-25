@@ -1,8 +1,12 @@
 import { io, Socket } from "socket.io-client";
 import { getToken } from "./api";
 
-const SOCKET_URL =
-  import.meta.env.VITE_SOCKET_URL || (import.meta.env.PROD ? undefined : "http://localhost:5000");
+const envSocketUrl = import.meta.env.VITE_SOCKET_URL;
+const SOCKET_URL = import.meta.env.PROD
+  ? envSocketUrl && !envSocketUrl.includes("localhost")
+    ? envSocketUrl
+    : undefined
+  : envSocketUrl || "http://localhost:5000";
 
 let socket: Socket | null = null;
 
