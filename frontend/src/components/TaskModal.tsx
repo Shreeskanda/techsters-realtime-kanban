@@ -1,18 +1,29 @@
 import React, { useState, useEffect } from "react";
 import { api } from "../lib/api";
-import type { Task, Comment, WorkspaceMember } from "../lib/api";
+import { connectSocket } from "../lib/socket";
+import type { Task, Comment, WorkspaceMember, Column } from "../lib/api";
 
 interface Props {
   task: Task;
   workspaceId: string;
   userRole: string;
+  columns: Column[];
   members: WorkspaceMember[];
   onClose: () => void;
   onUpdate: (task: Task) => void;
   onDelete: (id: string) => void;
 }
 
-export default function TaskModal({ task, workspaceId, userRole, members, onClose, onUpdate, onDelete }: Props) {
+export default function TaskModal({
+  task,
+  workspaceId,
+  userRole,
+  columns,
+  members,
+  onClose,
+  onUpdate,
+  onDelete,
+}: Props) {
   const [comments, setComments] = useState<Comment[]>([]);
   const [newComment, setNewComment] = useState("");
   const [editing, setEditing] = useState(false);
@@ -20,8 +31,9 @@ export default function TaskModal({ task, workspaceId, userRole, members, onClos
     title: task.title,
     description: task.description || "",
     priority: task.priority,
+    columnId: task.columnId,
     dueDate: task.dueDate ? task.dueDate.split("T")[0] : "",
-    labels: task.labels.join(", "),
+    labels: (task.labels || []).join(", "),
     assigneeId: task.assigneeId || "",
   });
   const [saving, setSaving] = useState(false);
@@ -32,6 +44,20 @@ export default function TaskModal({ task, workspaceId, userRole, members, onClos
     api.tasks.getComments(task.id).then(setComments);
   }, [task.id]);
 
+  // Real-time comments while modal is open
+  useEffect(() => {
+    const socket = connectSocket();
+    const onNewComment = ({ comment, taskId }: { comment: Comment; taskId: string }) => {
+      if (taskId === task.id) {
+        setComments((prev) => (prev.some((c) => c.id === comment.id) ? prev : [...prev, comment]));
+      }
+    };
+    socket.on("new_comment", onNewComment);
+    return () => {
+      socket.off("new_comment", onNewComment);
+    };
+  }, [task.id]);
+
   const handleSave = async () => {
     setSaving(true);
     try {
@@ -39,8 +65,12 @@ export default function TaskModal({ task, workspaceId, userRole, members, onClos
         title: form.title,
         description: form.description || undefined,
         priority: form.priority,
+        columnId: form.columnId,
         dueDate: form.dueDate || undefined,
-        labels: form.labels.split(",").map((l) => l.trim()).filter(Boolean),
+        labels: form.labels
+          .split(",")
+          .map((l) => l.trim())
+          .filter(Boolean),
         assigneeId: form.assigneeId || undefined,
         workspaceId,
       });
@@ -56,8 +86,8 @@ export default function TaskModal({ task, workspaceId, userRole, members, onClos
     if (!newComment.trim()) return;
     setPosting(true);
     try {
-      const c = await api.tasks.addComment(task.id, newComment);
-      setComments((prev) => [...prev, c]);
+      const c = await api.tasks.addComment(task.id, newComment.trim());
+      setComments((prev) => (prev.some((p) => p.id === c.id) ? prev : [...prev, c]));
       setNewComment("");
     } finally {
       setPosting(false);
@@ -65,7 +95,7 @@ export default function TaskModal({ task, workspaceId, userRole, members, onClos
   };
 
   const handleDelete = async () => {
-    if (!confirm("Delete this task? This cannot be undone.")) return;
+    if (!confirm("Delete this task permanently?")) return;
     setDeleting(true);
     try {
       await api.tasks.delete(task.id);
@@ -75,152 +105,228 @@ export default function TaskModal({ task, workspaceId, userRole, members, onClos
     }
   };
 
-  const priorityColors: Record<string, string> = {
-    LOW: "bg-slate-700 text-slate-400",
-    MEDIUM: "bg-yellow-900/60 text-yellow-300",
-    HIGH: "bg-orange-900/60 text-orange-300",
-    URGENT: "bg-red-900/60 text-red-300",
+  const priorityBadge: Record<string, string> = {
+    LOW: "badge-gray",
+    MEDIUM: "badge-orange",
+    HIGH: "badge-purple",
+    URGENT: "badge-red",
   };
 
+  const statusName = columns.find((c) => c.id === task.columnId)?.name || task.column?.name || "—";
+
   return (
-    <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-50 p-4">
-      <div className="bg-slate-800 border border-slate-700 rounded-2xl w-full max-w-2xl shadow-2xl max-h-[90vh] flex flex-col">
-        {/* Header */}
-        <div className="flex items-start justify-between p-6 border-b border-slate-700">
-          <div className="flex-1 mr-4">
+    <div className="overlay">
+      <div className="modal modal-lg">
+        <div className="modal-header" style={{ gap: 12 }}>
+          <div style={{ flex: 1 }}>
             {editing ? (
               <input
-                className="input text-lg font-bold"
+                className="input"
                 value={form.title}
                 onChange={(e) => setForm((f) => ({ ...f, title: e.target.value }))}
               />
             ) : (
-              <h2 className="text-xl font-bold text-white">{task.title}</h2>
+              <div className="modal-title" style={{ fontSize: 18 }}>
+                {task.title}
+              </div>
             )}
-            <div className="flex items-center gap-2 mt-2">
-              <span className={`text-xs px-2 py-1 rounded font-medium ${priorityColors[task.priority]}`}>
-                {task.priority}
-              </span>
+            <div style={{ display: "flex", gap: 6, flexWrap: "wrap", marginTop: 10 }}>
+              <span className={`badge ${priorityBadge[task.priority] || "badge-gray"}`}>{task.priority}</span>
+              <span className="badge badge-blue">{statusName}</span>
               {task.labels?.map((label) => (
-                <span key={label} className="text-xs bg-blue-900/40 text-blue-300 px-2 py-1 rounded">
+                <span key={label} className="task-label">
                   {label}
                 </span>
               ))}
             </div>
           </div>
-          <div className="flex items-center gap-2">
+
+          <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
             {userRole !== "VIEWER" && !editing && (
-              <button onClick={() => setEditing(true)} className="btn-secondary text-sm">Edit</button>
+              <button onClick={() => setEditing(true)} className="btn btn-secondary btn-sm">
+                Edit
+              </button>
             )}
             {userRole === "ADMIN" && (
-              <button onClick={handleDelete} disabled={deleting} className="btn-danger text-sm">
+              <button onClick={handleDelete} disabled={deleting} className="btn btn-danger btn-sm">
                 {deleting ? "..." : "Delete"}
               </button>
             )}
-            <button onClick={onClose} className="text-slate-400 hover:text-white text-2xl leading-none ml-2">×</button>
+            <button onClick={onClose} className="modal-close" aria-label="Close">
+              ×
+            </button>
           </div>
         </div>
 
-        {/* Content */}
-        <div className="flex-1 overflow-y-auto p-6 space-y-6">
-          {/* Metadata */}
+        <div className="modal-body" style={{ display: "flex", flexDirection: "column", gap: 20 }}>
           {editing ? (
-            <div className="grid grid-cols-2 gap-4">
+            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}>
               <div>
-                <label className="block text-xs font-medium text-slate-400 mb-1">Priority</label>
-                <select className="input text-sm" value={form.priority}
-                  onChange={(e) => setForm((f) => ({ ...f, priority: e.target.value as Task["priority"] }))}>
-                  <option>LOW</option><option>MEDIUM</option><option>HIGH</option><option>URGENT</option>
+                <label className="field-label">Status Column</label>
+                <select
+                  className="input sm"
+                  value={form.columnId}
+                  onChange={(e) => setForm((f) => ({ ...f, columnId: e.target.value }))}
+                >
+                  {columns.map((c) => (
+                    <option key={c.id} value={c.id}>
+                      {c.name}
+                    </option>
+                  ))}
                 </select>
               </div>
               <div>
-                <label className="block text-xs font-medium text-slate-400 mb-1">Due Date</label>
-                <input type="date" className="input text-sm" value={form.dueDate}
-                  onChange={(e) => setForm((f) => ({ ...f, dueDate: e.target.value }))} />
+                <label className="field-label">Priority</label>
+                <select
+                  className="input sm"
+                  value={form.priority}
+                  onChange={(e) => setForm((f) => ({ ...f, priority: e.target.value as Task["priority"] }))}
+                >
+                  <option value="LOW">LOW</option>
+                  <option value="MEDIUM">MEDIUM</option>
+                  <option value="HIGH">HIGH</option>
+                  <option value="URGENT">URGENT</option>
+                </select>
               </div>
               <div>
-                <label className="block text-xs font-medium text-slate-400 mb-1">Assignee</label>
-                <select className="input text-sm" value={form.assigneeId}
-                  onChange={(e) => setForm((f) => ({ ...f, assigneeId: e.target.value }))}>
+                <label className="field-label">Due Date</label>
+                <input
+                  type="date"
+                  className="input sm"
+                  value={form.dueDate}
+                  onChange={(e) => setForm((f) => ({ ...f, dueDate: e.target.value }))}
+                />
+              </div>
+              <div>
+                <label className="field-label">Assignee</label>
+                <select
+                  className="input sm"
+                  value={form.assigneeId}
+                  onChange={(e) => setForm((f) => ({ ...f, assigneeId: e.target.value }))}
+                >
                   <option value="">Unassigned</option>
-                  {members.map((m) => <option key={m.user.id} value={m.user.id}>{m.user.name}</option>)}
+                  {members.map((m) => (
+                    <option key={m.user.id} value={m.user.id}>
+                      {m.user.name}
+                    </option>
+                  ))}
                 </select>
               </div>
-              <div>
-                <label className="block text-xs font-medium text-slate-400 mb-1">Labels</label>
-                <input className="input text-sm" placeholder="label1, label2" value={form.labels}
-                  onChange={(e) => setForm((f) => ({ ...f, labels: e.target.value }))} />
+              <div style={{ gridColumn: "1 / -1" }}>
+                <label className="field-label">Labels (comma separated)</label>
+                <input
+                  className="input sm"
+                  placeholder="frontend, auth, sprint-1"
+                  value={form.labels}
+                  onChange={(e) => setForm((f) => ({ ...f, labels: e.target.value }))}
+                />
               </div>
-              <div className="col-span-2">
-                <label className="block text-xs font-medium text-slate-400 mb-1">Description</label>
-                <textarea className="input resize-none h-24 text-sm" value={form.description}
-                  onChange={(e) => setForm((f) => ({ ...f, description: e.target.value }))} />
+              <div style={{ gridColumn: "1 / -1" }}>
+                <label className="field-label">Description</label>
+                <textarea
+                  className="input"
+                  rows={3}
+                  value={form.description}
+                  onChange={(e) => setForm((f) => ({ ...f, description: e.target.value }))}
+                />
               </div>
-              <div className="col-span-2 flex gap-2">
-                <button onClick={() => setEditing(false)} className="btn-secondary flex-1">Cancel</button>
-                <button onClick={handleSave} disabled={saving} className="btn-primary flex-1">
+              <div style={{ gridColumn: "1 / -1", display: "flex", justifyContent: "flex-end", gap: 8 }}>
+                <button type="button" onClick={() => setEditing(false)} className="btn btn-secondary">
+                  Cancel
+                </button>
+                <button type="button" onClick={handleSave} disabled={saving} className="btn btn-primary">
                   {saving ? "Saving..." : "Save Changes"}
                 </button>
               </div>
             </div>
           ) : (
-            <div className="grid grid-cols-2 gap-4 text-sm">
-              <div className="bg-slate-900 rounded-lg p-3">
-                <p className="text-slate-500 text-xs mb-1">Assignee</p>
-                <p className="text-slate-200">{task.assignee?.name || "Unassigned"}</p>
+            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10 }}>
+              <div style={{ background: "var(--bg-surface)", border: "1px solid var(--border-subtle)", borderRadius: 8, padding: 12 }}>
+                <div className="stat-label">Assignee</div>
+                <div style={{ fontSize: 13.5, fontWeight: 600, color: "var(--text-primary)", marginTop: 4 }}>
+                  {task.assignee?.name || "Unassigned"}
+                </div>
               </div>
-              <div className="bg-slate-900 rounded-lg p-3">
-                <p className="text-slate-500 text-xs mb-1">Due Date</p>
-                <p className="text-slate-200">{task.dueDate ? new Date(task.dueDate).toLocaleDateString() : "—"}</p>
+              <div style={{ background: "var(--bg-surface)", border: "1px solid var(--border-subtle)", borderRadius: 8, padding: 12 }}>
+                <div className="stat-label">Due Date</div>
+                <div style={{ fontSize: 13.5, fontWeight: 600, color: "var(--text-primary)", marginTop: 4 }}>
+                  {task.dueDate ? new Date(task.dueDate).toLocaleDateString() : "—"}
+                </div>
               </div>
-              <div className="bg-slate-900 rounded-lg p-3">
-                <p className="text-slate-500 text-xs mb-1">Created by</p>
-                <p className="text-slate-200">{task.creator?.name || "—"}</p>
+              <div style={{ background: "var(--bg-surface)", border: "1px solid var(--border-subtle)", borderRadius: 8, padding: 12 }}>
+                <div className="stat-label">Reporter</div>
+                <div style={{ fontSize: 13.5, fontWeight: 600, color: "var(--text-primary)", marginTop: 4 }}>
+                  {task.creator?.name || "—"}
+                </div>
               </div>
-              <div className="bg-slate-900 rounded-lg p-3">
-                <p className="text-slate-500 text-xs mb-1">Status</p>
-                <p className="text-slate-200">{task.column?.name || "—"}</p>
+              <div style={{ background: "var(--bg-surface)", border: "1px solid var(--border-subtle)", borderRadius: 8, padding: 12 }}>
+                <div className="stat-label">Created</div>
+                <div style={{ fontSize: 13.5, fontWeight: 600, color: "var(--text-primary)", marginTop: 4 }}>
+                  {new Date(task.createdAt).toLocaleDateString()}
+                </div>
               </div>
               {task.description && (
-                <div className="col-span-2 bg-slate-900 rounded-lg p-3">
-                  <p className="text-slate-500 text-xs mb-1">Description</p>
-                  <p className="text-slate-300 whitespace-pre-wrap">{task.description}</p>
+                <div
+                  style={{
+                    gridColumn: "1 / -1",
+                    background: "var(--bg-surface)",
+                    border: "1px solid var(--border-subtle)",
+                    borderRadius: 8,
+                    padding: 12,
+                  }}
+                >
+                  <div className="stat-label">Description</div>
+                  <div style={{ fontSize: 13.5, color: "var(--text-primary)", whiteSpace: "pre-wrap", marginTop: 6, lineHeight: 1.5 }}>
+                    {task.description}
+                  </div>
                 </div>
               )}
             </div>
           )}
 
-          {/* Comments */}
-          <div>
-            <h3 className="font-semibold text-slate-200 mb-3">Comments ({comments.length})</h3>
-            <div className="space-y-3 mb-4">
+          {/* Comments Thread */}
+          <div style={{ borderTop: "1px solid var(--border-subtle)", paddingTop: 16 }}>
+            <h3 style={{ fontSize: 14, color: "var(--text-primary)", marginBottom: 12 }}>
+              Comments ({comments.length})
+            </h3>
+            <div style={{ display: "flex", flexDirection: "column", gap: 8, marginBottom: 12 }}>
               {comments.length === 0 ? (
-                <p className="text-slate-500 text-sm">No comments yet.</p>
+                <div style={{ fontSize: 13, color: "var(--text-secondary)" }}>No comments yet.</div>
               ) : (
                 comments.map((c) => (
-                  <div key={c.id} className="bg-slate-900 rounded-lg p-3">
-                    <div className="flex items-center gap-2 mb-1">
-                      <span className="w-6 h-6 rounded-full bg-blue-600 flex items-center justify-center text-white text-xs font-bold">
+                  <div
+                    key={c.id}
+                    style={{
+                      background: "var(--bg-surface)",
+                      border: "1px solid var(--border-subtle)",
+                      borderRadius: 8,
+                      padding: 12,
+                    }}
+                  >
+                    <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 6 }}>
+                      <div className="user-avatar" style={{ width: 22, height: 22, fontSize: 10 }}>
                         {c.author.name[0]}
+                      </div>
+                      <span style={{ fontSize: 13, fontWeight: 600, color: "var(--text-primary)" }}>{c.author.name}</span>
+                      <span style={{ fontSize: 11, color: "var(--text-muted)" }}>
+                        {new Date(c.createdAt).toLocaleString()}
                       </span>
-                      <span className="text-sm font-medium text-slate-300">{c.author.name}</span>
-                      <span className="text-xs text-slate-500">{new Date(c.createdAt).toLocaleString()}</span>
                     </div>
-                    <p className="text-sm text-slate-300 ml-8">{c.content}</p>
+                    <div style={{ fontSize: 13.5, color: "var(--text-secondary)", paddingLeft: 30 }}>{c.content}</div>
                   </div>
                 ))
               )}
             </div>
 
             {userRole !== "VIEWER" && (
-              <form onSubmit={handleComment} className="flex gap-2">
+              <form onSubmit={handleComment} style={{ display: "flex", gap: 8 }}>
                 <input
-                  className="input flex-1 text-sm"
-                  placeholder="Add a comment..."
+                  className="input sm"
+                  placeholder="Write a comment..."
                   value={newComment}
                   onChange={(e) => setNewComment(e.target.value)}
                 />
-                <button type="submit" disabled={posting} className="btn-primary text-sm px-4">
+                <button type="submit" disabled={posting} className="btn btn-primary btn-sm">
                   {posting ? "..." : "Post"}
                 </button>
               </form>
