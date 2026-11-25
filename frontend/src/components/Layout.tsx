@@ -2,7 +2,7 @@ import React from "react";
 import { useAuthStore } from "../store/authStore";
 import { disconnectSocket } from "../lib/socket";
 
-export type NavPage = "admin-lobby" | "workspaces" | "workspace-detail" | "board";
+export type NavPage = "admin-lobby" | "member-lobby" | "workspaces" | "workspace-detail" | "board";
 
 interface Props {
   currentPage: NavPage;
@@ -62,12 +62,22 @@ export default function Layout({
                 <span className="icon">▤</span>
                 <span>All Projects</span>
               </button>
+              <button
+                onClick={() => onNavigate("member-lobby")}
+                className={`nav-btn ${currentPage === "member-lobby" ? "active" : ""}`}
+              >
+                <span className="icon">⇄</span>
+                <span>Member Lobby</span>
+              </button>
             </>
           ) : (
             <>
-              <button onClick={onSwitchPortal} className="nav-btn">
-                <span className="icon">⇄</span>
-                <span>Project Portal</span>
+              <button
+                onClick={() => onNavigate("member-lobby")}
+                className={`nav-btn ${currentPage === "member-lobby" ? "active" : ""}`}
+              >
+                <span className="icon">◈</span>
+                <span>Member &amp; User Lobby</span>
               </button>
               <button
                 onClick={() => onNavigate("workspaces")}
@@ -76,6 +86,12 @@ export default function Layout({
                 <span className="icon">▤</span>
                 <span>All Projects</span>
               </button>
+              {onSwitchPortal && (
+                <button onClick={onSwitchPortal} className="nav-btn">
+                  <span className="icon">⇄</span>
+                  <span>Project Portal</span>
+                </button>
+              )}
             </>
           )}
         </div>

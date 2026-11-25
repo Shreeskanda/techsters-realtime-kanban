@@ -5,6 +5,7 @@ import HomePage from "./pages/HomePage";
 import LoginPage from "./pages/LoginPage";
 import ProjectPortal from "./pages/ProjectPortal";
 import AdminLobby from "./pages/AdminLobby";
+import MemberLobby from "./pages/MemberLobby";
 import Dashboard from "./pages/Dashboard";
 import KanbanBoard from "./pages/KanbanBoard";
 import WorkspacePage from "./pages/WorkspacePage";
@@ -26,15 +27,11 @@ export default function App() {
   // Show login form (overlaid on home page) when user clicks Sign In
   const [showLogin, setShowLogin] = useState(false);
 
-  // Sync user's workspaces on login & set initial portal based on systemRole
+  // Sync user's workspaces on login & set initial lobby based on systemRole
   useEffect(() => {
     if (!token || !user) return;
-    if (user.systemRole === "ADMIN") {
-      setPage("admin-lobby");
-      setMemberPortalActive(false);
-    } else {
-      setMemberPortalActive(true);
-    }
+    setMemberPortalActive(false);
+    setPage(user.systemRole === "ADMIN" ? "admin-lobby" : "member-lobby");
     api.workspaces
       .list()
       .then(setMyWorkspaces)
@@ -157,6 +154,13 @@ export default function App() {
           onSelectWorkspace={handleSelectWorkspace}
           onSelectBoard={(bId, wsId, bName, wsObj) => handleSelectBoard(bId, wsId, bName || "Board", wsObj)}
           onPendingCountChange={setPendingCount}
+        />
+      )}
+
+      {page === "member-lobby" && (
+        <MemberLobby
+          onSelectWorkspace={handleSelectWorkspace}
+          onSelectBoard={(bId, wsId, bName, wsObj) => handleSelectBoard(bId, wsId, bName || "Board", wsObj)}
         />
       )}
 

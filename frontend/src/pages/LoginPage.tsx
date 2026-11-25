@@ -3,21 +3,22 @@ import { api } from "../lib/api";
 import { useAuthStore } from "../store/authStore";
 
 type Step = "email" | "register" | "login";
+type AccountType = "ADMIN" | "MEMBER" | "USER";
 
 export default function LoginPage() {
   const lastEmail = useAuthStore((s) => s.lastEmail);
   const setAuth = useAuthStore((s) => s.setAuth);
 
   const [step, setStep] = useState<Step>("email");
+  const [accountType, setAccountType] = useState<AccountType>("MEMBER");
   const [email, setEmail] = useState(lastEmail || "");
   const [knownName, setKnownName] = useState<string | undefined>(undefined);
   const [name, setName] = useState("");
   const [password, setPassword] = useState("");
-  const [systemRole, setSystemRole] = useState<"ADMIN" | "MEMBER">("ADMIN");
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
 
-  // If a returning user previously signed in on this browser, verify and skip straight to password login
+  // Returning user shortcut: verify email and jump to password login
   useEffect(() => {
     if (!lastEmail) return;
     let active = true;
@@ -65,6 +66,7 @@ export default function LoginPage() {
     setLoading(true);
     try {
       if (step === "register") {
+        const systemRole = accountType === "ADMIN" ? "ADMIN" : "MEMBER";
         const { token, user } = await api.auth.register({
           name: name.trim(),
           email: email.trim(),
@@ -93,6 +95,38 @@ export default function LoginPage() {
     setKnownName(undefined);
   };
 
+  const roleSelector = (
+    <div>
+      <label className="field-label">Lobby / Account Type</label>
+      <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 6 }}>
+        {(
+          [
+            { id: "ADMIN", label: "Admin" },
+            { id: "MEMBER", label: "Member" },
+            { id: "USER", label: "User" },
+          ] as const
+        ).map((opt) => (
+          <button
+            key={opt.id}
+            type="button"
+            onClick={() => setAccountType(opt.id)}
+            className={`btn btn-sm ${accountType === opt.id ? "btn-primary" : "btn-secondary"}`}
+            style={{ justifyContent: "center" }}
+          >
+            {opt.label}
+          </button>
+        ))}
+      </div>
+      <div style={{ fontSize: 11.5, color: "var(--text-secondary)", marginTop: 6 }}>
+        {accountType === "ADMIN"
+          ? "Admin Lobby: Manage organization workspaces, approve join requests & view analytics."
+          : accountType === "MEMBER"
+            ? "Member Lobby: Create projects, collaborate on Kanban boards & request team access."
+            : "User Lobby: Join authorized projects, track tasks & submit feedback."}
+      </div>
+    </div>
+  );
+
   return (
     <div
       className="auth-screen"
@@ -116,16 +150,50 @@ export default function LoginPage() {
           </div>
         </div>
 
+        {/* Mode Tabs: Login vs Create Account */}
+        <div
+          style={{
+            display: "grid",
+            gridTemplateColumns: "1fr 1fr",
+            gap: 6,
+            padding: 4,
+            background: "var(--bg-surface)",
+            border: "1px solid var(--border)",
+            borderRadius: 8,
+            marginBottom: 16,
+          }}
+        >
+          <button
+            type="button"
+            onClick={() => {
+              setError("");
+              setStep(knownName ? "login" : "email");
+            }}
+            className={`btn btn-sm ${step !== "register" ? "btn-primary" : "btn-ghost"}`}
+            style={{ justifyContent: "center" }}
+          >
+            Sign In
+          </button>
+          <button
+            type="button"
+            onClick={() => {
+              setError("");
+              setPassword("");
+              setStep("register");
+            }}
+            className={`btn btn-sm ${step === "register" ? "btn-primary" : "btn-ghost"}`}
+            style={{ justifyContent: "center" }}
+          >
+            Create Account
+          </button>
+        </div>
+
         {/* Step 1: Identify Email */}
         {step === "email" && (
-          <form onSubmit={handleEmailSubmit} style={{ display: "flex", flexDirection: "column", gap: 16 }}>
+          <form onSubmit={handleEmailSubmit} style={{ display: "flex", flexDirection: "column", gap: 14 }}>
+            {roleSelector}
+
             <div>
-              <div style={{ fontSize: 16, fontWeight: 600, color: "var(--text-primary)", marginBottom: 4 }}>
-                Sign in or create account
-              </div>
-              <div style={{ fontSize: 12.5, color: "var(--text-secondary)", marginBottom: 14 }}>
-                Enter your work email. New users set up an account instantly — no invite or approval needed.
-              </div>
               <label className="field-label">Work Email</label>
               <input
                 className="input"
@@ -140,29 +208,21 @@ export default function LoginPage() {
 
             {error && <div className="alert alert-error">{error}</div>}
 
-            <button type="submit" disabled={loading} className="btn btn-primary" style={{ width: "100%", justifyContent: "center", padding: "10px 16px" }}>
+            <button
+              type="submit"
+              disabled={loading}
+              className="btn btn-primary"
+              style={{ width: "100%", justifyContent: "center", padding: "10px 16px" }}
+            >
               {loading ? "Checking directory..." : "Continue →"}
             </button>
           </form>
         )}
 
-        {/* Step 2A: First-time Registration */}
+        {/* Step 2A: Create Account (Admin / Member / User) */}
         {step === "register" && (
           <form onSubmit={handleSubmit} style={{ display: "flex", flexDirection: "column", gap: 14 }}>
-            <div className="alert alert-info" style={{ justifyContent: "space-between", alignItems: "center" }}>
-              <div>
-                <div style={{ fontWeight: 600, fontSize: 12.5 }}>First-Time Setup</div>
-                <div style={{ fontSize: 12, opacity: 0.9 }}>{email}</div>
-              </div>
-              <button
-                type="button"
-                onClick={switchAccount}
-                className="btn btn-ghost btn-sm"
-                style={{ color: "var(--accent)", padding: "3px 8px" }}
-              >
-                Change
-              </button>
-            </div>
+            {roleSelector}
 
             <div>
               <label className="field-label">Full Name</label>
@@ -174,6 +234,18 @@ export default function LoginPage() {
                 autoFocus
                 required
                 minLength={2}
+              />
+            </div>
+
+            <div>
+              <label className="field-label">Work Email</label>
+              <input
+                className="input"
+                type="email"
+                placeholder="name@company.com"
+                value={email}
+                onChange={(e) => setEmail(e.target.value)}
+                required
               />
             </div>
 
@@ -190,32 +262,15 @@ export default function LoginPage() {
               />
             </div>
 
-            <div>
-              <label className="field-label">Account Role</label>
-              <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 8 }}>
-                <button
-                  type="button"
-                  onClick={() => setSystemRole("ADMIN")}
-                  className={`btn btn-sm ${systemRole === "ADMIN" ? "btn-primary" : "btn-secondary"}`}
-                  style={{ justifyContent: "center" }}
-                >
-                  Admin
-                </button>
-                <button
-                  type="button"
-                  onClick={() => setSystemRole("MEMBER")}
-                  className={`btn btn-sm ${systemRole === "MEMBER" ? "btn-primary" : "btn-secondary"}`}
-                  style={{ justifyContent: "center" }}
-                >
-                  Member
-                </button>
-              </div>
-            </div>
-
             {error && <div className="alert alert-error">{error}</div>}
 
-            <button type="submit" disabled={loading} className="btn btn-primary" style={{ width: "100%", justifyContent: "center", padding: "10px 16px" }}>
-              {loading ? "Creating account..." : "Create Account & Continue →"}
+            <button
+              type="submit"
+              disabled={loading}
+              className="btn btn-primary"
+              style={{ width: "100%", justifyContent: "center", padding: "10px 16px" }}
+            >
+              {loading ? "Creating account..." : `Create ${accountType === "ADMIN" ? "Admin" : accountType === "MEMBER" ? "Member" : "User"} Account →`}
             </button>
           </form>
         )}
@@ -263,12 +318,16 @@ export default function LoginPage() {
 
             {error && <div className="alert alert-error">{error}</div>}
 
-            <button type="submit" disabled={loading} className="btn btn-primary" style={{ width: "100%", justifyContent: "center", padding: "10px 16px" }}>
+            <button
+              type="submit"
+              disabled={loading}
+              className="btn btn-primary"
+              style={{ width: "100%", justifyContent: "center", padding: "10px 16px" }}
+            >
               {loading ? "Authenticating..." : "Sign In →"}
             </button>
           </form>
         )}
-
       </div>
     </div>
   );

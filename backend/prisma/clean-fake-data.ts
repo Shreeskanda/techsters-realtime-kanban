@@ -1,3 +1,5 @@
+import dotenv from "dotenv";
+dotenv.config({ path: "../.vercel/.env.production.local", override: true });
 import { PrismaClient } from "@prisma/client";
 
 const prisma = new PrismaClient();
