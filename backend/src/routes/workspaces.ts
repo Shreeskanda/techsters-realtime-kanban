@@ -38,17 +38,9 @@ workspaceRouter.get("/public", async (_req: AuthRequest, res) => {
   }
 });
 
-// POST /api/workspaces – ADMIN only project creation
+// POST /api/workspaces – any authenticated user can create a project (creator becomes workspace ADMIN)
 workspaceRouter.post("/", async (req: AuthRequest, res) => {
   try {
-    const actor = await prisma.user.findUnique({
-      where: { id: req.userId! },
-      select: { systemRole: true },
-    });
-    if (!actor || actor.systemRole !== "ADMIN") {
-      return res.status(403).json({ error: "Only Admins can create projects" });
-    }
-
     const { name, description } = createWorkspaceSchema.parse(req.body);
     const slug = name.toLowerCase().replace(/\s+/g, "-").replace(/[^a-z0-9-]/g, "") + "-" + Date.now();
 

@@ -11,6 +11,7 @@ const registerSchema = z.object({
   name: z.string().min(2).max(60),
   email: z.string().email(),
   password: z.string().min(6).max(100),
+  systemRole: z.enum(["ADMIN", "MEMBER"]).optional().default("ADMIN"),
 });
 
 const loginSchema = z.object({
@@ -40,14 +41,14 @@ authRouter.post("/check-email", async (req, res) => {
 // POST /api/auth/register
 authRouter.post("/register", async (req, res) => {
   try {
-    const { name, email, password } = registerSchema.parse(req.body);
+    const { name, email, password, systemRole } = registerSchema.parse(req.body);
     const normalizedEmail = email.trim().toLowerCase();
     const existing = await prisma.user.findUnique({ where: { email: normalizedEmail } });
     if (existing) return res.status(409).json({ error: "Email already registered" });
 
     const hashed = await bcrypt.hash(password, 12);
     const user = await prisma.user.create({
-      data: { name: name.trim(), email: normalizedEmail, password: hashed },
+      data: { name: name.trim(), email: normalizedEmail, password: hashed, systemRole },
       select: { id: true, name: true, email: true, systemRole: true, createdAt: true },
     });
 

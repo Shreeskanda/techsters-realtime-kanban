@@ -18,6 +18,28 @@ export default function ProjectPortal({ onEnterWorkspace }: Props) {
   const [loading, setLoading] = useState(true);
   const [requestTarget, setRequestTarget] = useState<PublicWorkspace | null>(null);
   const [notice, setNotice] = useState<string>("");
+  const [showCreate, setShowCreate] = useState(false);
+  const [newWsName, setNewWsName] = useState("");
+  const [newWsDesc, setNewWsDesc] = useState("");
+  const [creating, setCreating] = useState(false);
+
+  const handleCreateProject = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!newWsName.trim()) return;
+    setCreating(true);
+    try {
+      const ws = await api.workspaces.create({ name: newWsName.trim(), description: newWsDesc.trim() || undefined });
+      setShowCreate(false);
+      setNewWsName("");
+      setNewWsDesc("");
+      await loadPortal();
+      onEnterWorkspace(ws);
+    } catch (err: unknown) {
+      setNotice(err instanceof Error ? err.message : "Failed to create project");
+    } finally {
+      setCreating(false);
+    }
+  };
 
   const loadPortal = useCallback(async () => {
     try {
@@ -95,8 +117,8 @@ export default function ProjectPortal({ onEnterWorkspace }: Props) {
         <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
           <div className="logo-mark">K</div>
           <div>
-            <div className="logo-text">TechSters Kanban · Member Portal</div>
-            <div className="logo-sub">Step 2 of 2 · Select a Project to Authenticate Into</div>
+            <div className="logo-text">TechSters ERP · Project Portal</div>
+            <div className="logo-sub">Create a Project or Select an Authorized Workspace</div>
           </div>
         </div>
 
@@ -136,13 +158,18 @@ export default function ProjectPortal({ onEnterWorkspace }: Props) {
               Log into an authorized project workspace below, or click any restricted project to send a join request to the Admin.
             </p>
           </div>
-          <div style={{ width: 280 }}>
-            <input
-              className="input sm"
-              placeholder="Search projects..."
-              value={search}
-              onChange={(e) => setSearch(e.target.value)}
-            />
+          <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+            <div style={{ width: 240 }}>
+              <input
+                className="input sm"
+                placeholder="Search projects..."
+                value={search}
+                onChange={(e) => setSearch(e.target.value)}
+              />
+            </div>
+            <button className="btn btn-primary btn-sm" onClick={() => setShowCreate(true)}>
+              + New Project
+            </button>
           </div>
         </div>
 
@@ -159,10 +186,12 @@ export default function ProjectPortal({ onEnterWorkspace }: Props) {
               </div>
 
               {myWorkspaces.length === 0 ? (
-                <div className="alert alert-warn">
-                  <span>⚠</span>
-                  <div>
-                    You haven&apos;t been invited to any projects yet. Select a project in the directory below to request access from the Admin.
+                <div className="alert alert-warn" style={{ justifyContent: "space-between", alignItems: "center" }}>
+                  <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+                    <span>⚠</span>
+                    <div>
+                      You haven&apos;t joined or created any projects yet. Click <strong>+ New Project</strong> to start one, or request access below.
+                    </div>
                   </div>
                 </div>
               ) : (
@@ -281,6 +310,51 @@ export default function ProjectPortal({ onEnterWorkspace }: Props) {
           </div>
         )}
       </main>
+
+      {showCreate && (
+        <div className="overlay">
+          <div className="modal" style={{ maxWidth: 440 }}>
+            <div className="modal-header">
+              <div className="modal-title">Create New Project</div>
+              <button className="modal-close" onClick={() => setShowCreate(false)}>
+                ×
+              </button>
+            </div>
+            <form onSubmit={handleCreateProject}>
+              <div className="modal-body" style={{ display: "flex", flexDirection: "column", gap: 14 }}>
+                <div>
+                  <label className="field-label">Project Name</label>
+                  <input
+                    className="input"
+                    placeholder="e.g. Operations & Inventory"
+                    value={newWsName}
+                    onChange={(e) => setNewWsName(e.target.value)}
+                    autoFocus
+                    required
+                  />
+                </div>
+                <div>
+                  <label className="field-label">Description (optional)</label>
+                  <input
+                    className="input"
+                    placeholder="Department, scope, or team objective"
+                    value={newWsDesc}
+                    onChange={(e) => setNewWsDesc(e.target.value)}
+                  />
+                </div>
+              </div>
+              <div className="modal-footer">
+                <button type="button" onClick={() => setShowCreate(false)} className="btn btn-secondary">
+                  Cancel
+                </button>
+                <button type="submit" disabled={creating} className="btn btn-primary">
+                  {creating ? "Creating..." : "Create Project"}
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
 
       {requestTarget && (
         <JoinRequestModal

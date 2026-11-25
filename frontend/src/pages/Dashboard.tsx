@@ -10,7 +10,6 @@ interface Props {
 
 export default function Dashboard({ onSelectWorkspace, onSelectBoard }: Props) {
   const user = useAuthStore((s) => s.user);
-  const isAdmin = user?.systemRole === "ADMIN";
   const [workspaces, setWorkspaces] = useState<Workspace[]>([]);
   const [loading, setLoading] = useState(true);
   const [showCreate, setShowCreate] = useState(false);
@@ -49,11 +48,9 @@ export default function Dashboard({ onSelectWorkspace, onSelectBoard }: Props) {
           <h1 className="page-title">Projects &amp; Workspaces</h1>
           <p className="page-sub">Welcome back, {user?.name}</p>
         </div>
-        {isAdmin && (
-          <button onClick={() => setShowCreate(true)} className="btn btn-primary">
-            + New Project
-          </button>
-        )}
+        <button onClick={() => setShowCreate(true)} className="btn btn-primary">
+          + New Project
+        </button>
       </div>
 
       <div className="grid-3" style={{ marginBottom: 24 }}>

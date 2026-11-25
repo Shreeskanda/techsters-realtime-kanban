@@ -39,7 +39,7 @@ export default function Layout({
           <div className="logo-mark">K</div>
           <div>
             <div className="logo-text">TechSters</div>
-            <div className="logo-sub">Kanban · AVISHKAR&apos;26</div>
+            <div className="logo-sub">Enterprise ERP</div>
           </div>
         </div>
 
@@ -64,10 +64,19 @@ export default function Layout({
               </button>
             </>
           ) : (
-            <button onClick={onSwitchPortal} className="nav-btn">
-              <span className="icon">⇄</span>
-              <span>Project Portal</span>
-            </button>
+            <>
+              <button onClick={onSwitchPortal} className="nav-btn">
+                <span className="icon">⇄</span>
+                <span>Project Portal</span>
+              </button>
+              <button
+                onClick={() => onNavigate("workspaces")}
+                className={`nav-btn ${currentPage === "workspaces" ? "active" : ""}`}
+              >
+                <span className="icon">▤</span>
+                <span>All Projects</span>
+              </button>
+            </>
           )}
         </div>
 

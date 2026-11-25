@@ -13,6 +13,7 @@ export default function LoginPage() {
   const [knownName, setKnownName] = useState<string | undefined>(undefined);
   const [name, setName] = useState("");
   const [password, setPassword] = useState("");
+  const [systemRole, setSystemRole] = useState<"ADMIN" | "MEMBER">("ADMIN");
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
 
@@ -68,6 +69,7 @@ export default function LoginPage() {
           name: name.trim(),
           email: email.trim(),
           password,
+          systemRole,
         });
         setAuth(token, user);
       } else {
@@ -186,6 +188,28 @@ export default function LoginPage() {
                 required
                 minLength={6}
               />
+            </div>
+
+            <div>
+              <label className="field-label">Account Role</label>
+              <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 8 }}>
+                <button
+                  type="button"
+                  onClick={() => setSystemRole("ADMIN")}
+                  className={`btn btn-sm ${systemRole === "ADMIN" ? "btn-primary" : "btn-secondary"}`}
+                  style={{ justifyContent: "center" }}
+                >
+                  Admin
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setSystemRole("MEMBER")}
+                  className={`btn btn-sm ${systemRole === "MEMBER" ? "btn-primary" : "btn-secondary"}`}
+                  style={{ justifyContent: "center" }}
+                >
+                  Member
+                </button>
+              </div>
             </div>
 
             {error && <div className="alert alert-error">{error}</div>}
