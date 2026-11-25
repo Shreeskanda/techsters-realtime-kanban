@@ -104,29 +104,31 @@ export default function HomePage({ onGetStarted }: HomePageProps) {
       >
         {/* Logo */}
         <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
-          <div
-            style={{
-              width: 36,
-              height: 36,
-              borderRadius: 9,
-              background: "linear-gradient(135deg, #58a6ff 0%, #bc8cff 100%)",
-              display: "flex",
-              alignItems: "center",
-              justifyContent: "center",
-              fontWeight: 800,
-              fontSize: 17,
-              color: "#fff",
-              boxShadow: "0 2px 10px rgba(88,166,255,0.3)",
-            }}
-          >
-            T
-          </div>
+          {/* Diamond icon — matches the app navbar */}
+          <svg width="36" height="36" viewBox="0 0 36 36" fill="none" xmlns="http://www.w3.org/2000/svg">
+            <defs>
+              <linearGradient id="hp-logo-grad" x1="0" y1="0" x2="36" y2="36" gradientUnits="userSpaceOnUse">
+                <stop offset="0%" stopColor="#58a6ff"/>
+                <stop offset="100%" stopColor="#bc8cff"/>
+              </linearGradient>
+            </defs>
+            <rect width="36" height="36" rx="9" fill="url(#hp-logo-grad)"/>
+            {/* diamond / kite shape */}
+            <polygon points="18,6 30,18 18,30 6,18" fill="none" stroke="rgba(255,255,255,0.35)" strokeWidth="1.2"/>
+            <polygon points="18,10 26,18 18,26 10,18" fill="rgba(255,255,255,0.18)"/>
+            <circle cx="18" cy="18" r="3.5" fill="#fff"/>
+          </svg>
           <div>
-            <div style={{ fontWeight: 700, fontSize: 14.5, letterSpacing: "-0.3px", lineHeight: 1.1 }}>
-              TechSters ERP
+            <div style={{ fontWeight: 800, fontSize: 15, letterSpacing: "-0.4px", lineHeight: 1.1 }}>
+              <span style={{ color: "var(--text-primary,#e6edf3)" }}>Tech</span>
+              <span style={{
+                background: "linear-gradient(135deg, #58a6ff 0%, #bc8cff 100%)",
+                WebkitBackgroundClip: "text",
+                WebkitTextFillColor: "transparent",
+              }}>Sters</span>
             </div>
-            <div style={{ fontSize: 10.5, color: "var(--text-secondary,#8b949e)", letterSpacing: "0.3px" }}>
-              Enterprise Platform
+            <div style={{ fontSize: 10, color: "var(--text-secondary,#8b949e)", letterSpacing: "0.4px", marginTop: 1 }}>
+              Collaborative Kanban
             </div>
           </div>
         </div>
@@ -169,7 +171,7 @@ export default function HomePage({ onGetStarted }: HomePageProps) {
                 boxShadow: "0 2px 12px rgba(88,166,255,0.25)",
               }}
             >
-              Create Account →
+              Create Workspace →
             </button>
           </div>
         </div>
