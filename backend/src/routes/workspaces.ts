@@ -132,10 +132,13 @@ workspaceRouter.get("/:id", async (req: AuthRequest, res) => {
 workspaceRouter.post("/:id/members", async (req: AuthRequest, res) => {
   try {
     const workspaceId = req.params.id as string;
-    const me = await prisma.workspaceMember.findUnique({
-      where: { userId_workspaceId: { userId: req.userId!, workspaceId } },
-    });
-    if (!me || me.role !== "ADMIN") return res.status(403).json({ error: "Only ADMINs can invite members" });
+    const isSystemAdmin = req.systemRole === "ADMIN";
+    if (!isSystemAdmin) {
+      const me = await prisma.workspaceMember.findUnique({
+        where: { userId_workspaceId: { userId: req.userId!, workspaceId } },
+      });
+      if (!me || me.role !== "ADMIN") return res.status(403).json({ error: "Only workspace ADMINs can invite members" });
+    }
 
     const { email, role } = inviteMemberSchema.parse(req.body);
     const target = await prisma.user.findUnique({ where: { email: email.trim().toLowerCase() } });
@@ -180,10 +183,13 @@ workspaceRouter.post("/:id/members", async (req: AuthRequest, res) => {
 workspaceRouter.get("/:id/assignable-users", async (req: AuthRequest, res) => {
   try {
     const workspaceId = req.params.id as string;
-    const me = await prisma.workspaceMember.findUnique({
-      where: { userId_workspaceId: { userId: req.userId!, workspaceId } },
-    });
-    if (!me || me.role !== "ADMIN") return res.status(403).json({ error: "Only ADMINs can view assignable users" });
+    const isSystemAdmin = req.systemRole === "ADMIN";
+    if (!isSystemAdmin) {
+      const me = await prisma.workspaceMember.findUnique({
+        where: { userId_workspaceId: { userId: req.userId!, workspaceId } },
+      });
+      if (!me || me.role !== "ADMIN") return res.status(403).json({ error: "Only ADMINs can view assignable users" });
+    }
 
     const [users, memberships] = await Promise.all([
       prisma.user.findMany({
@@ -212,10 +218,13 @@ workspaceRouter.get("/:id/assignable-users", async (req: AuthRequest, res) => {
 workspaceRouter.delete("/:id", async (req: AuthRequest, res) => {
   try {
     const workspaceId = req.params.id as string;
-    const me = await prisma.workspaceMember.findUnique({
-      where: { userId_workspaceId: { userId: req.userId!, workspaceId } },
-    });
-    if (!me || me.role !== "ADMIN") return res.status(403).json({ error: "Only workspace ADMINs can delete a project" });
+    const isSystemAdmin = req.systemRole === "ADMIN";
+    if (!isSystemAdmin) {
+      const me = await prisma.workspaceMember.findUnique({
+        where: { userId_workspaceId: { userId: req.userId!, workspaceId } },
+      });
+      if (!me || me.role !== "ADMIN") return res.status(403).json({ error: "Only workspace ADMINs can delete a project" });
+    }
 
     const workspace = await prisma.workspace.findUnique({
       where: { id: workspaceId },
@@ -247,10 +256,13 @@ workspaceRouter.patch("/:id/members/:userId", async (req: AuthRequest, res) => {
   try {
     const workspaceId = req.params.id as string;
     const targetUserId = req.params.userId as string;
-    const me = await prisma.workspaceMember.findUnique({
-      where: { userId_workspaceId: { userId: req.userId!, workspaceId } },
-    });
-    if (!me || me.role !== "ADMIN") return res.status(403).json({ error: "Only ADMINs can assign roles" });
+    const isSystemAdmin = req.systemRole === "ADMIN";
+    if (!isSystemAdmin) {
+      const me = await prisma.workspaceMember.findUnique({
+        where: { userId_workspaceId: { userId: req.userId!, workspaceId } },
+      });
+      if (!me || me.role !== "ADMIN") return res.status(403).json({ error: "Only ADMINs can assign roles" });
+    }
 
     const { role } = z.object({ role: z.enum(["ADMIN", "MEMBER", "VIEWER"]) }).parse(req.body);
     const updated = await prisma.workspaceMember.update({
@@ -281,10 +293,13 @@ workspaceRouter.delete("/:id/members/:userId", async (req: AuthRequest, res) => 
   try {
     const workspaceId = req.params.id as string;
     const targetUserId = req.params.userId as string;
-    const me = await prisma.workspaceMember.findUnique({
-      where: { userId_workspaceId: { userId: req.userId!, workspaceId } },
-    });
-    if (!me || me.role !== "ADMIN") return res.status(403).json({ error: "Only ADMINs can remove members" });
+    const isSystemAdmin = req.systemRole === "ADMIN";
+    if (!isSystemAdmin) {
+      const me = await prisma.workspaceMember.findUnique({
+        where: { userId_workspaceId: { userId: req.userId!, workspaceId } },
+      });
+      if (!me || me.role !== "ADMIN") return res.status(403).json({ error: "Only ADMINs can remove members" });
+    }
 
     await prisma.workspaceMember.delete({
       where: { userId_workspaceId: { userId: targetUserId, workspaceId } },
