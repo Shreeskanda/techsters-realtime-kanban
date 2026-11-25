@@ -254,13 +254,13 @@ export default function LoginPage() {
           <div className="auth-hint-title">Quick Demo Accounts (pw: password123)</div>
           <div style={{ display: "flex", gap: 6, flexWrap: "wrap" }}>
             <button type="button" className="btn btn-secondary btn-sm" onClick={() => quickSelectDemo("alice@techsters.dev")}>
-              Admin (Alice)
+              Admin
             </button>
             <button type="button" className="btn btn-secondary btn-sm" onClick={() => quickSelectDemo("bob@techsters.dev")}>
-              Member (Bob)
+              Member
             </button>
             <button type="button" className="btn btn-secondary btn-sm" onClick={() => quickSelectDemo("carol@techsters.dev")}>
-              Viewer (Carol)
+              Viewer
             </button>
           </div>
         </div>

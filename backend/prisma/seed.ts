@@ -14,7 +14,7 @@ async function main() {
     update: { systemRole: "ADMIN" },
     create: {
       email: "alice@techsters.dev",
-      name: "Alice (Admin)",
+      name: "Alice",
       password: passwordHash,
       systemRole: "ADMIN",
     },
@@ -25,7 +25,7 @@ async function main() {
     update: { systemRole: "MEMBER" },
     create: {
       email: "bob@techsters.dev",
-      name: "Bob (Member)",
+      name: "Bob",
       password: passwordHash,
       systemRole: "MEMBER",
     },
@@ -36,7 +36,7 @@ async function main() {
     update: { systemRole: "MEMBER" },
     create: {
       email: "carol@techsters.dev",
-      name: "Carol (Viewer)",
+      name: "Carol",
       password: passwordHash,
       systemRole: "MEMBER",
     },

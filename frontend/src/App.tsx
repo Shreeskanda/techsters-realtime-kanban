@@ -1,6 +1,7 @@
 import { useState, useEffect } from "react";
 import { useAuthStore } from "./store/authStore";
 import { api } from "./lib/api";
+import HomePage from "./pages/HomePage";
 import LoginPage from "./pages/LoginPage";
 import ProjectPortal from "./pages/ProjectPortal";
 import AdminLobby from "./pages/AdminLobby";
@@ -22,6 +23,8 @@ export default function App() {
   const [selectedWorkspace, setSelectedWorkspace] = useState<Workspace | null>(null);
   const [myWorkspaces, setMyWorkspaces] = useState<Workspace[]>([]);
   const [pendingCount, setPendingCount] = useState(0);
+  // Show login form (overlaid on home page) when user clicks Sign In
+  const [showLogin, setShowLogin] = useState(false);
 
   // Sync user's workspaces on login & set initial portal based on systemRole
   useEffect(() => {
@@ -38,7 +41,54 @@ export default function App() {
       .catch(() => setMyWorkspaces([]));
   }, [token, user]);
 
-  if (!token || !user) return <LoginPage />;
+  if (!token || !user) {
+    return (
+      <>
+        <HomePage onGetStarted={() => setShowLogin(true)} />
+        {showLogin && (
+          <div
+            style={{
+              position: "fixed",
+              inset: 0,
+              zIndex: 999,
+              background: "rgba(0,0,0,0.65)",
+              backdropFilter: "blur(6px)",
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "center",
+            }}
+            onClick={(e) => { if (e.target === e.currentTarget) setShowLogin(false); }}
+          >
+            <div style={{ position: "relative" }}>
+              <button
+                onClick={() => setShowLogin(false)}
+                style={{
+                  position: "absolute",
+                  top: -12,
+                  right: -12,
+                  zIndex: 10,
+                  background: "var(--bg-surface,#161b22)",
+                  border: "1px solid var(--border,#21262d)",
+                  borderRadius: "50%",
+                  width: 28,
+                  height: 28,
+                  cursor: "pointer",
+                  color: "var(--text-secondary,#8b949e)",
+                  fontSize: 16,
+                  display: "flex",
+                  alignItems: "center",
+                  justifyContent: "center",
+                }}
+              >
+                ×
+              </button>
+              <LoginPage />
+            </div>
+          </div>
+        )}
+      </>
+    );
+  }
 
   const handleSelectBoard = (
     boardId: string,
