@@ -15,6 +15,10 @@ import { exportRouter } from "./routes/export";
 import { joinRouter } from "./routes/joinRequests";
 import { feedbackRouter } from "./routes/feedback";
 import { adminRouter } from "./routes/admin";
+import { memoryRouter } from "./routes/memory";
+import { blockerRouter } from "./routes/blockers";
+import { handoffRouter } from "./routes/handoffs";
+import { healthRouter } from "./routes/health";
 import { setupSocketIO } from "./socket";
 import { setIO } from "./lib/io";
 
@@ -78,6 +82,10 @@ app.use("/api/tasks", commentRouter);
 app.use("/api/join-requests", joinRouter);
 app.use("/api/feedback", feedbackRouter);
 app.use("/api/admin", adminRouter);
+app.use("/api", memoryRouter);
+app.use("/api", blockerRouter);
+app.use("/api", handoffRouter);
+app.use("/api", healthRouter);
 
 // Global error handler
 app.use((err: Error, _req: Request, res: Response, _next: NextFunction) => {

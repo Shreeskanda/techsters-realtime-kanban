@@ -1,15 +1,25 @@
 import React, { useState, useEffect, useCallback } from "react";
 import { api } from "../lib/api";
 import { connectSocket } from "../lib/socket";
-import type { AdminStats, Workspace } from "../lib/api";
+import { useAuthStore } from "../store/authStore";
+import CollaborationWidgets from "../components/CollaborationWidgets";
+import type { TaskModalTab } from "../components/TaskModal";
+import type { AdminStats, AdminUserStatus, Workspace } from "../lib/api";
 
 interface Props {
   onSelectWorkspace: (w: Workspace) => void;
-  onSelectBoard: (boardId: string, workspaceId: string, boardName?: string, workspace?: Workspace) => void;
+  onSelectBoard: (
+    boardId: string,
+    workspaceId: string,
+    boardName?: string,
+    workspace?: Workspace,
+    taskId?: string,
+    initialTab?: TaskModalTab
+  ) => void;
   onPendingCountChange?: (count: number) => void;
 }
 
-type LobbyTab = "overview" | "requests" | "logs" | "feedback";
+type LobbyTab = "overview" | "users" | "requests" | "logs" | "feedback";
 
 const ACTION_LABELS: Record<string, { label: string; tone: string }> = {
   task_created: { label: "Created Task", tone: "badge-blue" },
@@ -17,6 +27,13 @@ const ACTION_LABELS: Record<string, { label: string; tone: string }> = {
   task_moved: { label: "Moved Task", tone: "badge-purple" },
   task_deleted: { label: "Deleted Task", tone: "badge-red" },
   comment_added: { label: "Commented", tone: "badge-blue" },
+  task_memory_added: { label: "Added Task Memory", tone: "badge-blue" },
+  blocker_created: { label: "Reported Blocker", tone: "badge-red" },
+  blocker_acknowledged: { label: "Ack Blocker", tone: "badge-orange" },
+  blocker_resolved: { label: "Resolved Blocker", tone: "badge-green" },
+  blocker_updated: { label: "Updated Blocker", tone: "badge-orange" },
+  handoff_created: { label: "Sent Handoff", tone: "badge-purple" },
+  handoff_acknowledged: { label: "Ack Handoff", tone: "badge-green" },
   project_created: { label: "Created Project", tone: "badge-green" },
   member_invited: { label: "Invited Member", tone: "badge-green" },
   role_updated: { label: "Updated Role", tone: "badge-purple" },
@@ -26,16 +43,33 @@ const ACTION_LABELS: Record<string, { label: string; tone: string }> = {
   feedback_submitted: { label: "Submitted Feedback", tone: "badge-orange" },
 };
 
+const PRESENCE_META: Record<
+  AdminUserStatus["presenceStatus"],
+  { label: string; badgeClass: string }
+> = {
+  ONLINE: { label: "Online Now", badgeClass: "badge-green" },
+  RECENTLY_ACTIVE: { label: "Recently Active", badgeClass: "badge-blue" },
+  OFFLINE: { label: "Offline", badgeClass: "badge-gray" },
+  NEVER_LOGGED_IN: { label: "Never Logged In", badgeClass: "badge-orange" },
+  DEACTIVATED: { label: "Deactivated", badgeClass: "badge-red" },
+};
+
 export default function AdminLobby({ onSelectWorkspace, onSelectBoard, onPendingCountChange }: Props) {
+  const currentUser = useAuthStore((s) => s.user);
   const [tab, setTab] = useState<LobbyTab>("overview");
   const [stats, setStats] = useState<AdminStats | null>(null);
   const [workspaces, setWorkspaces] = useState<Workspace[]>([]);
+  const [users, setUsers] = useState<AdminUserStatus[]>([]);
   const [loading, setLoading] = useState(true);
 
   // Filters
   const [logSearch, setLogSearch] = useState("");
   const [logActionFilter, setLogActionFilter] = useState("ALL");
   const [fbCategoryFilter, setFbCategoryFilter] = useState("ALL");
+  const [userSearch, setUserSearch] = useState("");
+  const [userFilter, setUserFilter] = useState<"ALL" | "ACTIVE" | "DEACTIVATED" | "ONLINE">("ALL");
+  const [togglingUserId, setTogglingUserId] = useState<string | null>(null);
+  const [userActionErr, setUserActionErr] = useState("");
 
   // Create Project Modal
   const [showCreate, setShowCreate] = useState(false);
@@ -50,9 +84,14 @@ export default function AdminLobby({ onSelectWorkspace, onSelectBoard, onPending
 
   const loadData = useCallback(async () => {
     try {
-      const [s, ws] = await Promise.all([api.admin.stats(), api.workspaces.list()]);
+      const [s, ws, usrList] = await Promise.all([
+        api.admin.stats(),
+        api.workspaces.list(),
+        api.admin.users().catch(() => [] as AdminUserStatus[]),
+      ]);
       setStats(s);
       setWorkspaces(ws);
+      setUsers(usrList);
       onPendingCountChange?.(s.pendingRequests);
     } finally {
       setLoading(false);
@@ -61,6 +100,8 @@ export default function AdminLobby({ onSelectWorkspace, onSelectBoard, onPending
 
   useEffect(() => {
     loadData();
+    const timer = setInterval(loadData, 30_000);
+    return () => clearInterval(timer);
   }, [loadData]);
 
   // Real-time updates inside Admin Lobby
@@ -76,6 +117,12 @@ export default function AdminLobby({ onSelectWorkspace, onSelectBoard, onPending
     socket.on("task_updated", refresh);
     socket.on("task_deleted", refresh);
     socket.on("new_comment", refresh);
+    socket.on("user_presence_changed", refresh);
+    socket.on("user_status_changed", refresh);
+    socket.on("blocker_created", refresh);
+    socket.on("blocker_resolved", refresh);
+    socket.on("handoff_created", refresh);
+    socket.on("handoff_acknowledged", refresh);
 
     return () => {
       socket.off("join_request_received", refresh);
@@ -85,8 +132,31 @@ export default function AdminLobby({ onSelectWorkspace, onSelectBoard, onPending
       socket.off("task_updated", refresh);
       socket.off("task_deleted", refresh);
       socket.off("new_comment", refresh);
+      socket.off("user_presence_changed", refresh);
+      socket.off("user_status_changed", refresh);
+      socket.off("blocker_created", refresh);
+      socket.off("blocker_resolved", refresh);
+      socket.off("handoff_created", refresh);
+      socket.off("handoff_acknowledged", refresh);
     };
   }, [loadData]);
+
+  const handleToggleUserActivation = async (u: AdminUserStatus) => {
+    setUserActionErr("");
+    setTogglingUserId(u.id);
+    try {
+      if (u.isActive) {
+        await api.admin.deactivateUser(u.id);
+      } else {
+        await api.admin.activateUser(u.id);
+      }
+      await loadData();
+    } catch (err: unknown) {
+      setUserActionErr(err instanceof Error ? err.message : "Failed to update user activation status");
+    } finally {
+      setTogglingUserId(null);
+    }
+  };
 
   const handleCreateProject = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -137,12 +207,27 @@ export default function AdminLobby({ onSelectWorkspace, onSelectBoard, onPending
     (fb) => fbCategoryFilter === "ALL" || fb.category === fbCategoryFilter
   );
 
+  const filteredUsers = users.filter((u) => {
+    const matchesText =
+      !userSearch.trim() ||
+      `${u.name} ${u.email} ${u.systemRole}`.toLowerCase().includes(userSearch.toLowerCase());
+    if (!matchesText) return false;
+    if (userFilter === "ACTIVE") return u.isActive;
+    if (userFilter === "DEACTIVATED") return !u.isActive;
+    if (userFilter === "ONLINE") return u.isOnline || u.presenceStatus === "RECENTLY_ACTIVE";
+    return true;
+  });
+
   return (
     <div style={{ display: "flex", flexDirection: "column", flex: 1 }}>
       {/* Sub-Navigation Tabs */}
       <div className="tabs-bar">
         <button className={`tab-btn ${tab === "overview" ? "active" : ""}`} onClick={() => setTab("overview")}>
           Dashboard Overview
+        </button>
+        <button className={`tab-btn ${tab === "users" ? "active" : ""}`} onClick={() => setTab("users")}>
+          Member &amp; User Activation
+          <span className="tab-count">{users.length || stats.totalUsers}</span>
         </button>
         <button className={`tab-btn ${tab === "requests" ? "active" : ""}`} onClick={() => setTab("requests")}>
           Join Requests
@@ -164,7 +249,7 @@ export default function AdminLobby({ onSelectWorkspace, onSelectBoard, onPending
           <div>
             <h1 className="page-title">Admin Control Lobby</h1>
             <p className="page-sub">
-              Manage organization projects, approve member join requests, audit log history, and review user feedback.
+              Monitor project health pulses, member &amp; user activation statuses, silent blockers, handoffs, and organization workspaces.
             </p>
           </div>
           <div style={{ display: "flex", gap: 10, alignItems: "center" }}>
@@ -182,7 +267,19 @@ export default function AdminLobby({ onSelectWorkspace, onSelectBoard, onPending
           <div className="stat-card">
             <div className="stat-label">Projects</div>
             <div className="stat-value">{stats.totalWorkspaces}</div>
-            <div className="stat-sub">{stats.totalUsers} registered users</div>
+            <div className="stat-sub">
+              {stats.unresolvedBlockersCount ?? 0} open blockers · {stats.pendingHandoffsCount ?? 0} pending handoffs
+            </div>
+          </div>
+          <div className="stat-card" style={{ cursor: "pointer" }} onClick={() => setTab("users")}>
+            <div className="stat-label">Account Activation</div>
+            <div className="stat-value" style={{ color: "var(--accent-green)" }}>
+              {stats.activeUsersCount ?? stats.totalUsers}
+              <span style={{ fontSize: 15, color: "var(--text-muted)", fontWeight: 500 }}> / {stats.totalUsers}</span>
+            </div>
+            <div className="stat-sub">
+              {stats.onlineUsersCount ?? 0} online now · {stats.inactiveUsersCount ?? 0} deactivated
+            </div>
           </div>
           <div className="stat-card">
             <div className="stat-label">Task Velocity</div>
@@ -196,20 +293,116 @@ export default function AdminLobby({ onSelectWorkspace, onSelectBoard, onPending
             <div className="stat-value" style={{ color: stats.pendingRequests > 0 ? "var(--accent-orange)" : "var(--text-primary)" }}>
               {stats.pendingRequests}
             </div>
-            <div className="stat-sub">Awaiting admin approval</div>
-          </div>
-          <div className="stat-card" style={{ cursor: "pointer" }} onClick={() => setTab("feedback")}>
-            <div className="stat-label">Feedback Score</div>
-            <div className="stat-value" style={{ color: "var(--accent-orange)" }}>
-              {stats.avgRating !== null ? `${stats.avgRating} ★` : "—"}
+            <div className="stat-sub">
+              Feedback: {stats.avgRating !== null ? `${stats.avgRating} ★` : "—"} ({stats.feedbacks.length})
             </div>
-            <div className="stat-sub">{stats.feedbacks.length} project reviews</div>
           </div>
         </div>
 
         {/* OVERVIEW TAB */}
         {tab === "overview" && (
           <div style={{ display: "flex", flexDirection: "column", gap: 24 }}>
+            {/* Member & User Activation Status right on Admin Login */}
+            <div className="card">
+              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 14, flexWrap: "wrap", gap: 8 }}>
+                <div>
+                  <h2 style={{ fontSize: 15.5, color: "var(--text-primary)" }}>
+                    Member &amp; User Activation Status
+                  </h2>
+                  <p style={{ fontSize: 12, color: "var(--text-secondary)", marginTop: 2 }}>
+                    Live login presence and account activation state for all registered Admins and Members.
+                  </p>
+                </div>
+                <button className="btn btn-secondary btn-sm" onClick={() => setTab("users")}>
+                  Manage All Users ({users.length}) →
+                </button>
+              </div>
+
+              {userActionErr && <div className="alert alert-error" style={{ marginBottom: 12 }}>{userActionErr}</div>}
+
+              {users.length === 0 ? (
+                <div style={{ fontSize: 13, color: "var(--text-secondary)" }}>No registered users found.</div>
+              ) : (
+                <div style={{ overflowX: "auto" }}>
+                  <table className="data-table">
+                    <thead>
+                      <tr>
+                        <th>User</th>
+                        <th>Role</th>
+                        <th>Account Status</th>
+                        <th>Session Presence</th>
+                        <th>Last Login</th>
+                        <th style={{ textAlign: "right" }}>Action</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {users.slice(0, 8).map((u) => {
+                        const pres = PRESENCE_META[u.presenceStatus];
+                        const isSelf = u.id === currentUser?.id;
+                        return (
+                          <tr key={u.id}>
+                            <td>
+                              <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                                <div className="activity-avatar" style={{ width: 26, height: 26, fontSize: 11 }}>
+                                  {u.name[0]}
+                                </div>
+                                <div>
+                                  <div style={{ fontWeight: 600, color: "var(--text-primary)" }}>{u.name}</div>
+                                  <div style={{ fontSize: 11.5, color: "var(--text-muted)" }}>{u.email}</div>
+                                </div>
+                              </div>
+                            </td>
+                            <td>
+                              <span className={`role-chip-${u.systemRole === "ADMIN" ? "ADMIN" : "MEMBER"}`}>
+                                {u.systemRole}
+                              </span>
+                            </td>
+                            <td>
+                              <span className={`badge ${u.isActive ? "badge-green" : "badge-red"}`}>
+                                {u.isActive ? "Active" : "Deactivated"}
+                              </span>
+                            </td>
+                            <td>
+                              <span className={`badge ${pres.badgeClass}`}>{pres.label}</span>
+                            </td>
+                            <td style={{ fontSize: 12, whiteSpace: "nowrap" }}>
+                              {u.lastLoginAt ? new Date(u.lastLoginAt).toLocaleString() : "Never"}
+                            </td>
+                            <td style={{ textAlign: "right" }}>
+                              {isSelf ? (
+                                <span style={{ fontSize: 11.5, color: "var(--text-muted)" }}>Current Admin</span>
+                              ) : (
+                                <button
+                                  className={`btn btn-sm ${u.isActive ? "btn-danger" : "btn-primary"}`}
+                                  disabled={togglingUserId === u.id}
+                                  onClick={() => handleToggleUserActivation(u)}
+                                >
+                                  {togglingUserId === u.id
+                                    ? "..."
+                                    : u.isActive
+                                      ? "Deactivate"
+                                      : "Activate"}
+                                </button>
+                              )}
+                            </td>
+                          </tr>
+                        );
+                      })}
+                    </tbody>
+                  </table>
+                </div>
+              )}
+            </div>
+
+            {/* TechSters 2.0 Signature Widgets (Project Health Pulse, Active Blockers, Pending Handoffs, Recent Memories) */}
+            <CollaborationWidgets
+              workspaces={workspaces}
+              currentUserId={currentUser?.id || ""}
+              onOpenBoard={(bId, wsId, bName, wsObj, taskId, tabName) =>
+                onSelectBoard(bId, wsId, bName, wsObj, taskId, tabName as TaskModalTab | undefined)
+              }
+            />
+
             {/* Pipeline Progress & Priority Distribution */}
             <div className="grid-2">
               <div className="card">
@@ -295,7 +488,7 @@ export default function AdminLobby({ onSelectWorkspace, onSelectBoard, onPending
               </div>
             </section>
 
-            {/* Quick Previews: Pending Requests + Recent Log History + Recent Feedback */}
+            {/* Quick Previews: Pending Requests + Recent Log History */}
             <div className="grid-2">
               <div className="card">
                 <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 14 }}>
@@ -373,6 +566,127 @@ export default function AdminLobby({ onSelectWorkspace, onSelectBoard, onPending
                 )}
               </div>
             </div>
+          </div>
+        )}
+
+        {/* MEMBER & USER ACTIVATION TAB */}
+        {tab === "users" && (
+          <div className="card">
+            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 12, flexWrap: "wrap", marginBottom: 16 }}>
+              <div>
+                <h2 style={{ fontSize: 16, color: "var(--text-primary)" }}>
+                  Member &amp; User Activation Console ({filteredUsers.length})
+                </h2>
+                <p style={{ fontSize: 12, color: "var(--text-secondary)", marginTop: 2 }}>
+                  Inspect member login timestamps, live online connections, and activate or deactivate platform access.
+                </p>
+              </div>
+              <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
+                <input
+                  className="input sm"
+                  style={{ width: 220 }}
+                  placeholder="Search name, email, role..."
+                  value={userSearch}
+                  onChange={(e) => setUserSearch(e.target.value)}
+                />
+                <select
+                  className="input sm"
+                  style={{ width: 160 }}
+                  value={userFilter}
+                  onChange={(e) => setUserFilter(e.target.value as typeof userFilter)}
+                >
+                  <option value="ALL">All Accounts</option>
+                  <option value="ACTIVE">Active Only</option>
+                  <option value="DEACTIVATED">Deactivated Only</option>
+                  <option value="ONLINE">Online / Recently Active</option>
+                </select>
+              </div>
+            </div>
+
+            {userActionErr && <div className="alert alert-error" style={{ marginBottom: 14 }}>{userActionErr}</div>}
+
+            {filteredUsers.length === 0 ? (
+              <div className="empty-state">No users match your filter.</div>
+            ) : (
+              <div style={{ overflowX: "auto" }}>
+                <table className="data-table">
+                  <thead>
+                    <tr>
+                      <th>Member / User</th>
+                      <th>Platform Role</th>
+                      <th>Activation</th>
+                      <th>Live Status</th>
+                      <th>Workspaces</th>
+                      <th>Last Login</th>
+                      <th>Last Seen</th>
+                      <th style={{ textAlign: "right" }}>Controls</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {filteredUsers.map((u) => {
+                      const pres = PRESENCE_META[u.presenceStatus];
+                      const isSelf = u.id === currentUser?.id;
+                      return (
+                        <tr key={u.id}>
+                          <td>
+                            <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                              <div className="activity-avatar" style={{ width: 28, height: 28, fontSize: 11 }}>
+                                {u.name[0]}
+                              </div>
+                              <div>
+                                <div style={{ fontWeight: 600, color: "var(--text-primary)" }}>{u.name}</div>
+                                <div style={{ fontSize: 11.5, color: "var(--text-muted)" }}>{u.email}</div>
+                              </div>
+                            </div>
+                          </td>
+                          <td>
+                            <span className={`role-chip-${u.systemRole === "ADMIN" ? "ADMIN" : "MEMBER"}`}>
+                              {u.systemRole}
+                            </span>
+                          </td>
+                          <td>
+                            <span className={`badge ${u.isActive ? "badge-green" : "badge-red"}`}>
+                              {u.isActive ? "Activated" : "Deactivated"}
+                            </span>
+                          </td>
+                          <td>
+                            <span className={`badge ${pres.badgeClass}`}>{pres.label}</span>
+                          </td>
+                          <td style={{ fontSize: 12 }}>
+                            {u.memberships.length === 0
+                              ? "No projects yet"
+                              : u.memberships.map((m) => `${m.workspace.name} (${m.role})`).join(", ")}
+                          </td>
+                          <td style={{ fontSize: 12, whiteSpace: "nowrap" }}>
+                            {u.lastLoginAt ? new Date(u.lastLoginAt).toLocaleString() : "Never"}
+                          </td>
+                          <td style={{ fontSize: 12, whiteSpace: "nowrap" }}>
+                            {u.lastSeenAt ? new Date(u.lastSeenAt).toLocaleString() : "—"}
+                          </td>
+                          <td style={{ textAlign: "right" }}>
+                            {isSelf ? (
+                              <span style={{ fontSize: 11.5, color: "var(--text-muted)" }}>You</span>
+                            ) : (
+                              <button
+                                className={`btn btn-sm ${u.isActive ? "btn-danger" : "btn-primary"}`}
+                                disabled={togglingUserId === u.id}
+                                onClick={() => handleToggleUserActivation(u)}
+                              >
+                                {togglingUserId === u.id
+                                  ? "..."
+                                  : u.isActive
+                                    ? "Deactivate"
+                                    : "Activate"}
+                              </button>
+                            )}
+                          </td>
+                        </tr>
+                      );
+                    })}
+                  </tbody>
+                </table>
+              </div>
+            )}
           </div>
         )}
 

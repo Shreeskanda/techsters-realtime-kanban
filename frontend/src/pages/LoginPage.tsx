@@ -45,6 +45,9 @@ export default function LoginPage() {
     setLoading(true);
     try {
       const res = await api.auth.checkEmail(trimmed);
+      if (res.exists && res.isActive === false) {
+        setError("This account is currently deactivated. Contact your administrator.");
+      }
       setKnownName(res.name);
       setPassword("");
       setStep(res.exists ? "login" : "register");

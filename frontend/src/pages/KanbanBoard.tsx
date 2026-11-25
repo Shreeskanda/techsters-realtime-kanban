@@ -2,28 +2,42 @@ import React, { useState, useEffect, useCallback, useRef } from "react";
 import { api } from "../lib/api";
 import { connectSocket } from "../lib/socket";
 import type { Board, Task, WorkspaceMember } from "../lib/api";
-import TaskModal from "../components/TaskModal";
+import TaskModal, { type TaskModalTab } from "../components/TaskModal";
 import CreateTaskModal from "../components/CreateTaskModal";
+import HealthPulse from "../components/HealthPulse";
 import { useAuthStore } from "../store/authStore";
 
 interface Props {
   boardId: string;
   workspaceId: string;
+  initialTaskId?: string;
+  initialTaskTab?: TaskModalTab;
+  onInitialTaskConsumed?: () => void;
   onManageWorkspace?: () => void;
 }
 
-export default function KanbanBoard({ boardId, workspaceId, onManageWorkspace }: Props) {
+export default function KanbanBoard({
+  boardId,
+  workspaceId,
+  initialTaskId,
+  initialTaskTab,
+  onInitialTaskConsumed,
+  onManageWorkspace,
+}: Props) {
   const user = useAuthStore((s) => s.user);
   const [board, setBoard] = useState<Board | null>(null);
   const [loading, setLoading] = useState(true);
   const [userRole, setUserRole] = useState<string>("VIEWER");
   const [selectedTask, setSelectedTask] = useState<Task | null>(null);
+  const [selectedTaskTab, setSelectedTaskTab] = useState<TaskModalTab>("overview");
   const [showCreateTask, setShowCreateTask] = useState<string | null>(null);
   const [addingCol, setAddingCol] = useState(false);
   const [newColName, setNewColName] = useState("");
   const [dragOverColId, setDragOverColId] = useState<string | null>(null);
   const [searchQuery, setSearchQuery] = useState("");
   const [priorityFilter, setPriorityFilter] = useState("ALL");
+  const [showHealthDrawer, setShowHealthDrawer] = useState(false);
+  const [handoffSuggestionTask, setHandoffSuggestionTask] = useState<Task | null>(null);
 
   const dragTask = useRef<{ taskId: string; fromColumnId: string } | null>(null);
 
@@ -37,10 +51,21 @@ export default function KanbanBoard({ boardId, workspaceId, onManageWorkspace }:
         );
         setUserRole(me?.role || "VIEWER");
       }
+      if (initialTaskId) {
+        for (const col of b.columns) {
+          const match = col.tasks.find((t) => t.id === initialTaskId);
+          if (match) {
+            setSelectedTask(match);
+            setSelectedTaskTab(initialTaskTab || "overview");
+            onInitialTaskConsumed?.();
+            break;
+          }
+        }
+      }
     } finally {
       setLoading(false);
     }
-  }, [boardId, user?.id]);
+  }, [boardId, user?.id, initialTaskId, initialTaskTab, onInitialTaskConsumed]);
 
   useEffect(() => {
     setLoading(true);
@@ -89,7 +114,7 @@ export default function KanbanBoard({ boardId, workspaceId, onManageWorkspace }:
             if (col.id === task.columnId) {
               const exists = col.tasks.find((t) => t.id === task.id);
               return exists
-                ? { ...col, tasks: col.tasks.map((t) => (t.id === task.id ? task : t)) }
+                ? { ...col, tasks: col.tasks.map((t) => (t.id === task.id ? { ...t, ...task } : t)) }
                 : { ...col, tasks: [...col.tasks.filter((t) => t.id !== task.id), task] };
             }
             return { ...col, tasks: col.tasks.filter((t) => t.id !== task.id) };
@@ -122,7 +147,13 @@ export default function KanbanBoard({ boardId, workspaceId, onManageWorkspace }:
             ...col,
             tasks: col.tasks.map((t) =>
               t.id === taskId
-                ? { ...t, _count: { comments: (t._count?.comments || 0) + 1 } }
+                ? {
+                    ...t,
+                    _count: {
+                      comments: (t._count?.comments || 0) + 1,
+                      memoryEntries: t._count?.memoryEntries || 0,
+                    },
+                  }
                 : t
             ),
           })),
@@ -130,16 +161,45 @@ export default function KanbanBoard({ boardId, workspaceId, onManageWorkspace }:
       });
     };
 
-    const onMembersChanged = () => loadBoard();
+    const onMemoryUpdated = ({ taskId }: { taskId: string }) => {
+      setBoard((b) => {
+        if (!b) return b;
+        return {
+          ...b,
+          columns: b.columns.map((col) => ({
+            ...col,
+            tasks: col.tasks.map((t) =>
+              t.id === taskId
+                ? {
+                    ...t,
+                    _count: {
+                      comments: t._count?.comments || 0,
+                      memoryEntries: (t._count?.memoryEntries || 0) + 1,
+                    },
+                  }
+                : t
+            ),
+          })),
+        };
+      });
+    };
+
+    const refreshBoard = () => loadBoard();
 
     socket.on("task_created", onTaskCreated);
     socket.on("task_updated", onTaskUpdated);
     socket.on("task_moved", onTaskMoved);
     socket.on("task_deleted", onTaskDeleted);
     socket.on("new_comment", onNewComment);
-    socket.on("member_added", onMembersChanged);
-    socket.on("member_updated", onMembersChanged);
-    socket.on("member_removed", onMembersChanged);
+    socket.on("task_memory_updated", onMemoryUpdated);
+    socket.on("blocker_created", refreshBoard);
+    socket.on("blocker_updated", refreshBoard);
+    socket.on("blocker_resolved", refreshBoard);
+    socket.on("handoff_created", refreshBoard);
+    socket.on("handoff_acknowledged", refreshBoard);
+    socket.on("member_added", refreshBoard);
+    socket.on("member_updated", refreshBoard);
+    socket.on("member_removed", refreshBoard);
 
     return () => {
       socket.off("task_created", onTaskCreated);
@@ -147,9 +207,15 @@ export default function KanbanBoard({ boardId, workspaceId, onManageWorkspace }:
       socket.off("task_moved", onTaskMoved);
       socket.off("task_deleted", onTaskDeleted);
       socket.off("new_comment", onNewComment);
-      socket.off("member_added", onMembersChanged);
-      socket.off("member_updated", onMembersChanged);
-      socket.off("member_removed", onMembersChanged);
+      socket.off("task_memory_updated", onMemoryUpdated);
+      socket.off("blocker_created", refreshBoard);
+      socket.off("blocker_updated", refreshBoard);
+      socket.off("blocker_resolved", refreshBoard);
+      socket.off("handoff_created", refreshBoard);
+      socket.off("handoff_acknowledged", refreshBoard);
+      socket.off("member_added", refreshBoard);
+      socket.off("member_updated", refreshBoard);
+      socket.off("member_removed", refreshBoard);
       socket.emit("leave_workspace", { workspaceId });
     };
   }, [workspaceId, loadBoard]);
@@ -167,14 +233,15 @@ export default function KanbanBoard({ boardId, workspaceId, onManageWorkspace }:
     const { taskId, fromColumnId } = dragTask.current;
     dragTask.current = null;
 
+    let movedTaskSnapshot: Task | undefined;
+
     // Optimistic UI move
     setBoard((b) => {
       if (!b) return b;
-      let movedTask: Task | undefined;
       const cols = b.columns.map((col) => {
         if (col.id === fromColumnId || col.tasks.some((t) => t.id === taskId)) {
           const found = col.tasks.find((t) => t.id === taskId);
-          if (found) movedTask = found;
+          if (found) movedTaskSnapshot = found;
           return { ...col, tasks: col.tasks.filter((t) => t.id !== taskId) };
         }
         return col;
@@ -182,15 +249,20 @@ export default function KanbanBoard({ boardId, workspaceId, onManageWorkspace }:
       return {
         ...b,
         columns: cols.map((col) =>
-          col.id === toColumnId && movedTask
-            ? { ...col, tasks: [...col.tasks, { ...movedTask, columnId: toColumnId }] }
+          col.id === toColumnId && movedTaskSnapshot
+            ? { ...col, tasks: [...col.tasks, { ...movedTaskSnapshot, columnId: toColumnId }] }
             : col
         ),
       };
     });
 
     try {
-      await api.tasks.update(taskId, { columnId: toColumnId, workspaceId });
+      const updated = await api.tasks.update(taskId, { columnId: toColumnId, workspaceId });
+      const targetCol = board?.columns.find((c) => c.id === toColumnId);
+      if (targetCol && /\b(review|qa|testing|handoff)\b/i.test(targetCol.name)) {
+        setHandoffSuggestionTask({ ...(movedTaskSnapshot || updated), ...updated, columnId: toColumnId });
+        setTimeout(() => setHandoffSuggestionTask(null), 9000);
+      }
     } catch {
       loadBoard();
     }
@@ -243,14 +315,14 @@ export default function KanbanBoard({ boardId, workspaceId, onManageWorkspace }:
         <div style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
           <input
             className="input sm"
-            style={{ width: 190 }}
+            style={{ width: 175 }}
             placeholder="Filter tasks..."
             value={searchQuery}
             onChange={(e) => setSearchQuery(e.target.value)}
           />
           <select
             className="input sm"
-            style={{ width: 120 }}
+            style={{ width: 115 }}
             value={priorityFilter}
             onChange={(e) => setPriorityFilter(e.target.value)}
           >
@@ -260,6 +332,13 @@ export default function KanbanBoard({ boardId, workspaceId, onManageWorkspace }:
             <option value="MEDIUM">Medium</option>
             <option value="LOW">Low</option>
           </select>
+
+          <button
+            className={`btn btn-sm ${showHealthDrawer ? "btn-primary" : "btn-secondary"}`}
+            onClick={() => setShowHealthDrawer((v) => !v)}
+          >
+            ♥ Health Pulse
+          </button>
 
           {onManageWorkspace && (
             <button className="btn btn-secondary btn-sm" onClick={onManageWorkspace}>
@@ -292,7 +371,41 @@ export default function KanbanBoard({ boardId, workspaceId, onManageWorkspace }:
             color: "var(--text-secondary)",
           }}
         >
-          👁 Read-only Viewer permissions active — task edits, drag-and-drop moves, and comments are disabled.
+          👁 Read-only Viewer permissions active — task edits, drag-and-drop moves, memory entries, blockers, handoffs, and comments are disabled.
+        </div>
+      )}
+
+      {/* Automated Handoff Suggestion Banner when moved to Review/QA */}
+      {handoffSuggestionTask && userRole !== "VIEWER" && (
+        <div
+          className="alert alert-info"
+          style={{ margin: "12px 24px 0", justifyContent: "space-between", alignItems: "center" }}
+        >
+          <span>
+            ⇄ <strong>{handoffSuggestionTask.title}</strong> moved to a review stage. Capture context via Auto Handoff Mode for the reviewer?
+          </span>
+          <div style={{ display: "flex", gap: 8 }}>
+            <button
+              className="btn btn-primary btn-sm"
+              onClick={() => {
+                setSelectedTask(handoffSuggestionTask);
+                setSelectedTaskTab("handoffs");
+                setHandoffSuggestionTask(null);
+              }}
+            >
+              Create Handoff →
+            </button>
+            <button className="btn btn-ghost btn-sm" onClick={() => setHandoffSuggestionTask(null)}>
+              Dismiss
+            </button>
+          </div>
+        </div>
+      )}
+
+      {/* Optional Inline Project Health Pulse Drawer */}
+      {showHealthDrawer && (
+        <div style={{ padding: "16px 24px 0" }}>
+          <HealthPulse workspaceId={workspaceId} canSnapshot={userRole === "ADMIN"} compact />
         </div>
       )}
 
@@ -358,7 +471,10 @@ export default function KanbanBoard({ boardId, workspaceId, onManageWorkspace }:
                       key={task.id}
                       draggable={userRole !== "VIEWER"}
                       onDragStart={() => handleDragStart(task.id, col.id)}
-                      onClick={() => setSelectedTask(task)}
+                      onClick={() => {
+                        setSelectedTaskTab("overview");
+                        setSelectedTask(task);
+                      }}
                       className="task-card"
                     >
                       {task.labels?.length > 0 && (
@@ -373,6 +489,22 @@ export default function KanbanBoard({ boardId, workspaceId, onManageWorkspace }:
 
                       <div className="task-card-title">{task.title}</div>
 
+                      {/* TechSters 2.0 Context Indicators */}
+                      {((task.openBlockersCount || 0) > 0 || (task.unreadHandoffsCount || 0) > 0) && (
+                        <div style={{ display: "flex", gap: 6, flexWrap: "wrap", marginBottom: 8 }}>
+                          {(task.openBlockersCount || 0) > 0 && (
+                            <span className="badge badge-red" style={{ fontSize: 10 }}>
+                              ⚠ {task.openBlockersCount} Blocker{(task.openBlockersCount || 0) > 1 ? "s" : ""}
+                            </span>
+                          )}
+                          {(task.unreadHandoffsCount || 0) > 0 && (
+                            <span className="badge badge-purple" style={{ fontSize: 10 }}>
+                              ⇄ Unread Handoff
+                            </span>
+                          )}
+                        </div>
+                      )}
+
                       <div className="task-card-meta">
                         <span className={`badge ${priorityBadgeClass[task.priority] || "badge-gray"}`} style={{ fontSize: 10 }}>
                           <span className={`priority-dot priority-${task.priority}`} />
@@ -382,6 +514,9 @@ export default function KanbanBoard({ boardId, workspaceId, onManageWorkspace }:
                         <div style={{ display: "flex", alignItems: "center", gap: 8, fontSize: 11.5, color: "var(--text-secondary)" }}>
                           {task.dueDate && (
                             <span>{new Date(task.dueDate).toLocaleDateString()}</span>
+                          )}
+                          {(task._count?.memoryEntries ?? 0) > 0 && (
+                            <span title="Task Memory Capsule entries">◈ {task._count?.memoryEntries}</span>
                           )}
                           {(task._count?.comments ?? 0) > 0 && (
                             <span>💬 {task._count?.comments}</span>
@@ -457,6 +592,7 @@ export default function KanbanBoard({ boardId, workspaceId, onManageWorkspace }:
           userRole={userRole}
           columns={board.columns}
           members={board.workspace?.members || []}
+          initialTab={selectedTaskTab}
           onClose={() => setSelectedTask(null)}
           onUpdate={(updated) => {
             setBoard((b) => {

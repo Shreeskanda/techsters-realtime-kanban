@@ -3,14 +3,23 @@ import { api } from "../lib/api";
 import { connectSocket } from "../lib/socket";
 import { useAuthStore } from "../store/authStore";
 import JoinRequestModal from "../components/JoinRequestModal";
+import CollaborationWidgets from "../components/CollaborationWidgets";
+import type { TaskModalTab } from "../components/TaskModal";
 import type { PublicWorkspace, Workspace, JoinRequest } from "../lib/api";
 
 interface Props {
   onSelectWorkspace: (w: Workspace) => void;
-  onSelectBoard: (boardId: string, workspaceId: string, boardName?: string, workspace?: Workspace) => void;
+  onSelectBoard: (
+    boardId: string,
+    workspaceId: string,
+    boardName?: string,
+    workspace?: Workspace,
+    taskId?: string,
+    initialTab?: TaskModalTab
+  ) => void;
 }
 
-type LobbyTab = "my-projects" | "directory" | "requests";
+type LobbyTab = "my-projects" | "pulse" | "directory" | "requests";
 
 export default function MemberLobby({ onSelectWorkspace, onSelectBoard }: Props) {
   const user = useAuthStore((s) => s.user);
@@ -63,11 +72,17 @@ export default function MemberLobby({ onSelectWorkspace, onSelectBoard }: Props)
       loadLobby();
       setTimeout(() => setNotice(""), 5000);
     };
+    const onHandoff = () => {
+      setNotice("You received a new task handoff! Check the Collaboration Pulse tab.");
+      setTimeout(() => setNotice(""), 6000);
+    };
     socket.on("join_request_approved", onApproved);
     socket.on("join_request_rejected", onRejected);
+    socket.on("handoff_created", onHandoff);
     return () => {
       socket.off("join_request_approved", onApproved);
       socket.off("join_request_rejected", onRejected);
+      socket.off("handoff_created", onHandoff);
     };
   }, [loadLobby]);
 
@@ -144,7 +159,7 @@ export default function MemberLobby({ onSelectWorkspace, onSelectBoard }: Props)
         <div>
           <h1 className="page-title">Member &amp; User Lobby</h1>
           <p className="page-sub">
-            Welcome, {user?.name} · Create projects, enter authorized boards, or request access to team workspaces.
+            Welcome, {user?.name} · Create projects, track Health Pulse &amp; Blockers, acknowledge handoffs, or request access.
           </p>
         </div>
         <div style={{ display: "flex", gap: 10, alignItems: "center", flexWrap: "wrap" }}>
@@ -178,12 +193,18 @@ export default function MemberLobby({ onSelectWorkspace, onSelectBoard }: Props)
       </div>
 
       {/* Lobby Tabs */}
-      <div className="tabs" style={{ marginBottom: 20 }}>
+      <div className="tabs-bar" style={{ marginBottom: 20, padding: 0, background: "transparent" }}>
         <button
           className={`tab-btn ${tab === "my-projects" ? "active" : ""}`}
           onClick={() => setTab("my-projects")}
         >
           My Projects ({myWorkspaces.length})
+        </button>
+        <button
+          className={`tab-btn ${tab === "pulse" ? "active" : ""}`}
+          onClick={() => setTab("pulse")}
+        >
+          Health, Blockers &amp; Handoffs
         </button>
         <button
           className={`tab-btn ${tab === "directory" ? "active" : ""}`}
@@ -199,9 +220,9 @@ export default function MemberLobby({ onSelectWorkspace, onSelectBoard }: Props)
         </button>
       </div>
 
-      {/* Tab 1: My Projects */}
+      {/* Tab 1: My Projects + inline widgets */}
       {tab === "my-projects" && (
-        <>
+        <div style={{ display: "flex", flexDirection: "column", gap: 24 }}>
           {filteredMine.length === 0 ? (
             <div className="card" style={{ textAlign: "center", padding: "36px 24px" }}>
               <div style={{ fontSize: 15, fontWeight: 600, color: "var(--text-primary)", marginBottom: 6 }}>
@@ -273,10 +294,31 @@ export default function MemberLobby({ onSelectWorkspace, onSelectBoard }: Props)
               })}
             </div>
           )}
-        </>
+
+          {myWorkspaces.length > 0 && (
+            <CollaborationWidgets
+              workspaces={myWorkspaces}
+              currentUserId={user?.id || ""}
+              onOpenBoard={(bId, wsId, bName, wsObj, taskId, tabName) =>
+                onSelectBoard(bId, wsId, bName, wsObj, taskId, tabName as TaskModalTab | undefined)
+              }
+            />
+          )}
+        </div>
       )}
 
-      {/* Tab 2: Project Directory */}
+      {/* Tab 2: Dedicated Pulse & Collaboration Widgets */}
+      {tab === "pulse" && (
+        <CollaborationWidgets
+          workspaces={myWorkspaces}
+          currentUserId={user?.id || ""}
+          onOpenBoard={(bId, wsId, bName, wsObj, taskId, tabName) =>
+            onSelectBoard(bId, wsId, bName, wsObj, taskId, tabName as TaskModalTab | undefined)
+          }
+        />
+      )}
+
+      {/* Tab 3: Project Directory */}
       {tab === "directory" && (
         <>
           {filteredPublic.length === 0 ? (
@@ -349,7 +391,7 @@ export default function MemberLobby({ onSelectWorkspace, onSelectBoard }: Props)
         </>
       )}
 
-      {/* Tab 3: My Join Requests */}
+      {/* Tab 4: My Join Requests */}
       {tab === "requests" && (
         <>
           {myRequests.length === 0 ? (

@@ -30,8 +30,11 @@ authRouter.post("/check-email", async (req, res) => {
   try {
     const { email } = z.object({ email: z.string().email() }).parse(req.body);
     const normalizedEmail = email.trim().toLowerCase();
-    const user = await prisma.user.findUnique({ where: { email: normalizedEmail }, select: { id: true, name: true } });
-    return res.json({ exists: !!user, name: user?.name });
+    const user = await prisma.user.findUnique({
+      where: { email: normalizedEmail },
+      select: { id: true, name: true, isActive: true },
+    });
+    return res.json({ exists: !!user, name: user?.name, isActive: user?.isActive ?? true });
   } catch (err: any) {
     if (err.name === "ZodError") return res.status(400).json({ error: "Invalid email" });
     return res.status(500).json({ error: "Server error" });
@@ -46,10 +49,27 @@ authRouter.post("/register", async (req, res) => {
     const existing = await prisma.user.findUnique({ where: { email: normalizedEmail } });
     if (existing) return res.status(409).json({ error: "Email already registered" });
 
+    const now = new Date();
     const hashed = await bcrypt.hash(password, 12);
     const user = await prisma.user.create({
-      data: { name: name.trim(), email: normalizedEmail, password: hashed, systemRole },
-      select: { id: true, name: true, email: true, systemRole: true, createdAt: true },
+      data: {
+        name: name.trim(),
+        email: normalizedEmail,
+        password: hashed,
+        systemRole,
+        isActive: true,
+        lastLoginAt: now,
+        lastSeenAt: now,
+      },
+      select: {
+        id: true,
+        name: true,
+        email: true,
+        systemRole: true,
+        isActive: true,
+        lastLoginAt: true,
+        createdAt: true,
+      },
     });
 
     return res.status(201).json({ token: signToken(user.id), user });
@@ -70,9 +90,28 @@ authRouter.post("/login", async (req, res) => {
     const valid = await bcrypt.compare(password, user.password);
     if (!valid) return res.status(401).json({ error: "Invalid email or password" });
 
+    if (!user.isActive) {
+      return res.status(403).json({ error: "Account deactivated. Contact your administrator." });
+    }
+
+    const now = new Date();
+    const updated = await prisma.user.update({
+      where: { id: user.id },
+      data: { lastLoginAt: now, lastSeenAt: now },
+      select: {
+        id: true,
+        name: true,
+        email: true,
+        systemRole: true,
+        isActive: true,
+        lastLoginAt: true,
+        lastSeenAt: true,
+      },
+    });
+
     return res.json({
       token: signToken(user.id),
-      user: { id: user.id, name: user.name, email: user.email, systemRole: user.systemRole },
+      user: updated,
     });
   } catch (err: any) {
     if (err.name === "ZodError") return res.status(400).json({ error: "Validation error", details: err.errors });
@@ -85,7 +124,17 @@ authRouter.get("/me", authenticate, async (req: AuthRequest, res) => {
   try {
     const user = await prisma.user.findUnique({
       where: { id: req.userId! },
-      select: { id: true, name: true, email: true, avatar: true, systemRole: true, createdAt: true },
+      select: {
+        id: true,
+        name: true,
+        email: true,
+        avatar: true,
+        systemRole: true,
+        isActive: true,
+        lastLoginAt: true,
+        lastSeenAt: true,
+        createdAt: true,
+      },
     });
     if (!user) return res.status(404).json({ error: "User not found" });
     return res.json(user);

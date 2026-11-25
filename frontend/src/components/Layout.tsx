@@ -11,6 +11,7 @@ interface Props {
   boardName?: string;
   workspaceName?: string;
   pendingRequestsCount?: number;
+  pendingHandoffsCount?: number;
   children: React.ReactNode;
 }
 
@@ -22,6 +23,7 @@ export default function Layout({
   boardName,
   workspaceName,
   pendingRequestsCount = 0,
+  pendingHandoffsCount = 0,
 }: Props) {
   const { user, logout, openFeedbackPrompt } = useAuthStore();
   const isSystemAdmin = user?.systemRole === "ADMIN";
@@ -39,7 +41,7 @@ export default function Layout({
           <div className="logo-mark">K</div>
           <div>
             <div className="logo-text">TechSters</div>
-            <div className="logo-sub">Enterprise ERP</div>
+            <div className="logo-sub">Context Kanban 2.0</div>
           </div>
         </div>
 
@@ -68,6 +70,7 @@ export default function Layout({
               >
                 <span className="icon">⇄</span>
                 <span>Member Lobby</span>
+                {pendingHandoffsCount > 0 && <span className="badge">{pendingHandoffsCount}</span>}
               </button>
             </>
           ) : (
@@ -78,6 +81,7 @@ export default function Layout({
               >
                 <span className="icon">◈</span>
                 <span>Member &amp; User Lobby</span>
+                {pendingHandoffsCount > 0 && <span className="badge">{pendingHandoffsCount}</span>}
               </button>
               <button
                 onClick={() => onNavigate("workspaces")}
@@ -177,6 +181,16 @@ export default function Layout({
           </div>
 
           <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+            {pendingHandoffsCount > 0 && (
+              <button
+                className="badge badge-purple"
+                style={{ cursor: "pointer" }}
+                onClick={() => onNavigate(isSystemAdmin ? "admin-lobby" : "member-lobby")}
+                title="View unread handoffs"
+              >
+                ⇄ {pendingHandoffsCount} Pending Handoff{pendingHandoffsCount > 1 ? "s" : ""}
+              </button>
+            )}
             <div className="live-pill">
               <span className="live-dot" /> Real-Time Sync
             </div>

@@ -16,6 +16,7 @@ export default function CreateTaskModal({ columnId, workspaceId, members, onClos
     description: "",
     priority: "MEDIUM" as Task["priority"],
     dueDate: "",
+    expectedHours: "",
     labels: "",
     assigneeId: "",
   });
@@ -32,6 +33,7 @@ export default function CreateTaskModal({ columnId, workspaceId, members, onClos
         description: form.description || undefined,
         priority: form.priority,
         dueDate: form.dueDate || undefined,
+        expectedHours: form.expectedHours ? Number(form.expectedHours) : undefined,
         labels: form.labels ? form.labels.split(",").map((l) => l.trim()).filter(Boolean) : [],
         assigneeId: form.assigneeId || undefined,
         columnId,
@@ -80,7 +82,7 @@ export default function CreateTaskModal({ columnId, workspaceId, members, onClos
               />
             </div>
 
-            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}>
+            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 10 }}>
               <div>
                 <label className="field-label">Priority</label>
                 <select
@@ -101,6 +103,18 @@ export default function CreateTaskModal({ columnId, workspaceId, members, onClos
                   className="input sm"
                   value={form.dueDate}
                   onChange={(e) => setForm((f) => ({ ...f, dueDate: e.target.value }))}
+                />
+              </div>
+              <div>
+                <label className="field-label">Est. Hours</label>
+                <input
+                  type="number"
+                  min={1}
+                  max={2000}
+                  className="input sm"
+                  placeholder="e.g. 8"
+                  value={form.expectedHours}
+                  onChange={(e) => setForm((f) => ({ ...f, expectedHours: e.target.value }))}
                 />
               </div>
             </div>

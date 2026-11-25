@@ -1,6 +1,8 @@
 import React, { useState, useEffect, useCallback } from "react";
 import { api } from "../lib/api";
-import type { Workspace, WorkspaceMember, ActivityLog, JoinRequest } from "../lib/api";
+import HealthPulse from "../components/HealthPulse";
+import { formatDurationSince } from "../components/CollaborationWidgets";
+import type { Workspace, WorkspaceMember, ActivityLog, JoinRequest, TaskBlocker } from "../lib/api";
 
 interface Props {
   workspace: Workspace;
@@ -15,6 +17,13 @@ const ACTION_LABELS: Record<string, string> = {
   task_moved: "moved task",
   task_deleted: "deleted task",
   comment_added: "commented on",
+  task_memory_added: "added memory capsule to",
+  blocker_created: "reported blocker on",
+  blocker_acknowledged: "acknowledged blocker on",
+  blocker_resolved: "resolved blocker on",
+  blocker_updated: "updated blocker on",
+  handoff_created: "handed off task",
+  handoff_acknowledged: "acknowledged handoff for",
   project_created: "created project",
   member_invited: "invited member",
   role_updated: "updated role",
@@ -27,6 +36,7 @@ const ACTION_LABELS: Record<string, string> = {
 export default function WorkspacePage({ workspace, onSelectBoard, userRole, currentUserId }: Props) {
   const [ws, setWs] = useState<Workspace>(workspace);
   const [activity, setActivity] = useState<ActivityLog[]>([]);
+  const [blockers, setBlockers] = useState<TaskBlocker[]>([]);
   const [joinRequests, setJoinRequests] = useState<JoinRequest[]>([]);
   const [inviteEmail, setInviteEmail] = useState("");
   const [inviteRole, setInviteRole] = useState<"ADMIN" | "MEMBER" | "VIEWER">("MEMBER");
@@ -36,12 +46,14 @@ export default function WorkspacePage({ workspace, onSelectBoard, userRole, curr
   const [creatingBoard, setCreatingBoard] = useState(false);
 
   const loadWorkspace = useCallback(async () => {
-    const [fullWs, logs] = await Promise.all([
+    const [fullWs, logs, wsBlockers] = await Promise.all([
       api.workspaces.get(workspace.id),
       api.workspaces.getActivity(workspace.id),
+      api.blockers.listForWorkspace(workspace.id).catch(() => [] as TaskBlocker[]),
     ]);
     setWs(fullWs);
     setActivity(logs);
+    setBlockers(wsBlockers);
     if (userRole === "ADMIN") {
       api.joinRequests.list(workspace.id).then(setJoinRequests).catch(() => {});
     }
@@ -103,7 +115,7 @@ export default function WorkspacePage({ workspace, onSelectBoard, userRole, curr
   };
 
   return (
-    <div className="page" style={{ maxWidth: 1040 }}>
+    <div className="page" style={{ maxWidth: 1080 }}>
       <div className="page-header">
         <div>
           <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
@@ -123,6 +135,9 @@ export default function WorkspacePage({ workspace, onSelectBoard, userRole, curr
       </div>
 
       <div style={{ display: "flex", flexDirection: "column", gap: 20 }}>
+        {/* Project Health Pulse */}
+        <HealthPulse workspaceId={ws.id} canSnapshot={userRole === "ADMIN"} />
+
         {/* Boards Section */}
         <div className="card">
           <h2 style={{ fontSize: 15.5, color: "var(--text-primary)", marginBottom: 14 }}>
@@ -154,6 +169,38 @@ export default function WorkspacePage({ workspace, onSelectBoard, userRole, curr
                 {creatingBoard ? "..." : "+ Create Board"}
               </button>
             </form>
+          )}
+        </div>
+
+        {/* Workspace Active Blockers */}
+        <div className="card">
+          <h2 style={{ fontSize: 15.5, color: "var(--text-primary)", marginBottom: 12 }}>
+            Active Blockers ({blockers.length})
+          </h2>
+          {blockers.length === 0 ? (
+            <div style={{ fontSize: 13, color: "var(--text-secondary)" }}>No active blockers in this workspace.</div>
+          ) : (
+            <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+              {blockers.map((b) => (
+                <div key={b.id} className="join-row" style={{ gap: 10, flexWrap: "wrap" }}>
+                  <div>
+                    <div style={{ fontSize: 13, fontWeight: 600, color: "var(--text-primary)" }}>
+                      {b.task?.title || "Task"} ·{" "}
+                      <span className="badge badge-red">{b.severity}</span>{" "}
+                      <span className="badge badge-gray">{b.status}</span>
+                    </div>
+                    <div style={{ fontSize: 12, color: "var(--text-secondary)", marginTop: 3 }}>
+                      {b.isPrivateRedacted
+                        ? "🔒 Private explanation restricted to Admins"
+                        : b.explanation || b.type.replace(/_/g, " ")}
+                    </div>
+                  </div>
+                  <span style={{ fontSize: 11.5, color: "var(--accent-orange)" }}>
+                    ⏱ Open {formatDurationSince(b.createdAt)}
+                  </span>
+                </div>
+              ))}
+            </div>
           )}
         </div>
 
@@ -199,7 +246,10 @@ export default function WorkspacePage({ workspace, onSelectBoard, userRole, curr
                 <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
                   <div className="user-avatar">{m.user.name[0]}</div>
                   <div>
-                    <div style={{ fontSize: 13.5, fontWeight: 600, color: "var(--text-primary)" }}>{m.user.name}</div>
+                    <div style={{ fontSize: 13.5, fontWeight: 600, color: "var(--text-primary)", display: "flex", alignItems: "center", gap: 6 }}>
+                      {m.user.name}
+                      {m.user.isActive === false && <span className="badge badge-red">Deactivated</span>}
+                    </div>
                     <div style={{ fontSize: 12, color: "var(--text-secondary)" }}>{m.user.email}</div>
                   </div>
                 </div>

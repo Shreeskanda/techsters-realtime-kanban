@@ -2,6 +2,7 @@ import { Router } from "express";
 import { z } from "zod";
 import { prisma } from "../lib/prisma";
 import { authenticate, AuthRequest } from "../middleware/auth";
+import { filterBlockerForUser } from "../lib/workspaceAuth";
 
 export const boardRouter = Router();
 
@@ -25,7 +26,9 @@ boardRouter.post("/", async (req: AuthRequest, res) => {
 
     const board = await prisma.board.create({
       data: {
-        name, description, workspaceId,
+        name,
+        description,
+        workspaceId,
         columns: {
           create: [
             { name: "TO DO", position: 0 },
@@ -41,7 +44,7 @@ boardRouter.post("/", async (req: AuthRequest, res) => {
               include: {
                 assignee: { select: { id: true, name: true } },
                 creator: { select: { id: true, name: true } },
-                _count: { select: { comments: true } },
+                _count: { select: { comments: true, memoryEntries: true } },
               },
             },
           },
@@ -72,7 +75,30 @@ boardRouter.get("/:id", async (req: AuthRequest, res) => {
               include: {
                 assignee: { select: { id: true, name: true, email: true } },
                 creator: { select: { id: true, name: true } },
-                _count: { select: { comments: true } },
+                _count: { select: { comments: true, memoryEntries: true } },
+                blockers: {
+                  where: { status: { not: "RESOLVED" } },
+                  select: {
+                    id: true,
+                    type: true,
+                    severity: true,
+                    privacy: true,
+                    status: true,
+                    explanation: true,
+                    resolutionNote: true,
+                    acknowledgedAt: true,
+                    resolvedAt: true,
+                    createdAt: true,
+                    updatedAt: true,
+                    taskId: true,
+                    workspaceId: true,
+                    reporterId: true,
+                  },
+                },
+                handoffs: {
+                  where: { toUserId: req.userId!, acknowledgment: { is: null } },
+                  select: { id: true },
+                },
               },
             },
           },
@@ -83,7 +109,7 @@ boardRouter.get("/:id", async (req: AuthRequest, res) => {
             name: true,
             members: {
               include: {
-                user: { select: { id: true, name: true, email: true } },
+                user: { select: { id: true, name: true, email: true, isActive: true } },
               },
             },
           },
@@ -97,7 +123,23 @@ boardRouter.get("/:id", async (req: AuthRequest, res) => {
     });
     if (!member) return res.status(403).json({ error: "Access denied" });
 
-    return res.json(board);
+    // Strip raw private blockers and return privacy-safe indicator counts per task
+    const sanitizedColumns = board.columns.map((col) => ({
+      ...col,
+      tasks: col.tasks.map((t) => {
+        const visibleBlockers = t.blockers
+          .map((b) => filterBlockerForUser(b, req.userId!, member.role))
+          .filter(Boolean);
+        const { blockers: _rawBlockers, handoffs: unreadHandoffs, ...rest } = t;
+        return {
+          ...rest,
+          openBlockersCount: visibleBlockers.length,
+          unreadHandoffsCount: unreadHandoffs.length,
+        };
+      }),
+    }));
+
+    return res.json({ ...board, columns: sanitizedColumns });
   } catch {
     return res.status(500).json({ error: "Failed to fetch board" });
   }

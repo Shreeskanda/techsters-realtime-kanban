@@ -1,7 +1,9 @@
-// Admin-specific stats, join requests, activity log & feedback dashboard endpoint
+// Admin-specific stats, user activation management, join requests, activity log & feedback dashboard endpoint
 import { Router } from "express";
 import { prisma } from "../lib/prisma";
 import { authenticate, AuthRequest } from "../middleware/auth";
+import { getIO } from "../lib/io";
+import { getOnlineUserIds, isUserOnline } from "../lib/presence";
 
 export const adminRouter = Router();
 adminRouter.use(authenticate);
@@ -26,6 +28,8 @@ adminRouter.get("/stats", async (req: AuthRequest, res) => {
 
     const [
       totalUsers,
+      activeUsersCount,
+      inactiveUsersCount,
       totalWorkspaces,
       totalTasks,
       completedTasks,
@@ -35,8 +39,12 @@ adminRouter.get("/stats", async (req: AuthRequest, res) => {
       recentActivity,
       tasksByPriority,
       feedbacks,
+      unresolvedBlockersCount,
+      pendingHandoffsCount,
     ] = await Promise.all([
       prisma.user.count(),
+      prisma.user.count({ where: { isActive: true } }),
+      prisma.user.count({ where: { isActive: false } }),
       prisma.workspace.count({ where: { id: { in: wsIds } } }),
       prisma.task.count({ where: { column: { board: { workspaceId: { in: wsIds } } } } }),
       prisma.task.count({ where: { column: { name: "DONE", board: { workspaceId: { in: wsIds } } } } }),
@@ -74,6 +82,12 @@ adminRouter.get("/stats", async (req: AuthRequest, res) => {
         orderBy: { createdAt: "desc" },
         take: 50,
       }),
+      prisma.taskBlocker.count({
+        where: { workspaceId: { in: wsIds }, status: { not: "RESOLVED" } },
+      }),
+      prisma.taskHandoff.count({
+        where: { workspaceId: { in: wsIds }, acknowledgment: { is: null } },
+      }),
     ]);
 
     const avgRating = feedbacks.length
@@ -82,6 +96,9 @@ adminRouter.get("/stats", async (req: AuthRequest, res) => {
 
     return res.json({
       totalUsers,
+      activeUsersCount,
+      inactiveUsersCount,
+      onlineUsersCount: getOnlineUserIds().length,
       totalWorkspaces,
       totalTasks,
       completedTasks,
@@ -93,9 +110,147 @@ adminRouter.get("/stats", async (req: AuthRequest, res) => {
       tasksByPriority,
       feedbacks,
       avgRating,
+      unresolvedBlockersCount,
+      pendingHandoffsCount,
     });
   } catch (err) {
     console.error(err);
     return res.status(500).json({ error: "Failed to fetch admin stats" });
+  }
+});
+
+// GET /api/admin/users – member & user activation status directory (System ADMIN only)
+adminRouter.get("/users", async (req: AuthRequest, res) => {
+  try {
+    if (req.systemRole !== "ADMIN") {
+      return res.status(403).json({ error: "System Admin access required" });
+    }
+
+    const users = await prisma.user.findMany({
+      select: {
+        id: true,
+        name: true,
+        email: true,
+        systemRole: true,
+        isActive: true,
+        lastLoginAt: true,
+        lastSeenAt: true,
+        createdAt: true,
+        memberships: {
+          select: {
+            role: true,
+            workspace: { select: { id: true, name: true } },
+          },
+        },
+      },
+      orderBy: [{ systemRole: "asc" }, { createdAt: "desc" }],
+    });
+
+    const fiveMinutesAgo = Date.now() - 5 * 60 * 1000;
+    const enriched = users.map((u) => {
+      const online = isUserOnline(u.id);
+      const recentlyActive = !!u.lastSeenAt && u.lastSeenAt.getTime() >= fiveMinutesAgo;
+      return {
+        ...u,
+        isOnline: online,
+        presenceStatus: !u.isActive
+          ? "DEACTIVATED"
+          : online
+            ? "ONLINE"
+            : recentlyActive
+              ? "RECENTLY_ACTIVE"
+              : u.lastLoginAt
+                ? "OFFLINE"
+                : "NEVER_LOGGED_IN",
+      };
+    });
+
+    return res.json(enriched);
+  } catch (err) {
+    console.error("Failed to fetch admin user activation list:", err);
+    return res.status(500).json({ error: "Failed to fetch users" });
+  }
+});
+
+// PATCH /api/admin/users/:id/activate – reactivate user account
+adminRouter.patch("/users/:id/activate", async (req: AuthRequest, res) => {
+  try {
+    if (req.systemRole !== "ADMIN") {
+      return res.status(403).json({ error: "System Admin access required" });
+    }
+
+    const targetId = req.params.id as string;
+    const user = await prisma.user.findUnique({ where: { id: targetId } });
+    if (!user) return res.status(404).json({ error: "User not found" });
+
+    const updated = await prisma.user.update({
+      where: { id: targetId },
+      data: { isActive: true },
+      select: {
+        id: true,
+        name: true,
+        email: true,
+        systemRole: true,
+        isActive: true,
+        lastLoginAt: true,
+        lastSeenAt: true,
+      },
+    });
+
+    try {
+      getIO().to("admin_lobby").emit("user_status_changed", { userId: targetId, isActive: true });
+    } catch {
+      // ignore socket errors
+    }
+
+    return res.json(updated);
+  } catch (err) {
+    console.error("Failed to activate user:", err);
+    return res.status(500).json({ error: "Failed to activate user" });
+  }
+});
+
+// PATCH /api/admin/users/:id/deactivate – deactivate user account & terminate live sockets
+adminRouter.patch("/users/:id/deactivate", async (req: AuthRequest, res) => {
+  try {
+    if (req.systemRole !== "ADMIN") {
+      return res.status(403).json({ error: "System Admin access required" });
+    }
+
+    const targetId = req.params.id as string;
+    if (targetId === req.userId) {
+      return res.status(400).json({ error: "You cannot deactivate your own active administrator account." });
+    }
+
+    const user = await prisma.user.findUnique({ where: { id: targetId } });
+    if (!user) return res.status(404).json({ error: "User not found" });
+
+    const updated = await prisma.user.update({
+      where: { id: targetId },
+      data: { isActive: false },
+      select: {
+        id: true,
+        name: true,
+        email: true,
+        systemRole: true,
+        isActive: true,
+        lastLoginAt: true,
+        lastSeenAt: true,
+      },
+    });
+
+    try {
+      const io = getIO();
+      io.to(`user:${targetId}`).emit("account_deactivated", { message: "Your account has been deactivated by an administrator." });
+      io.in(`user:${targetId}`).disconnectSockets(true);
+      io.to("admin_lobby").emit("user_status_changed", { userId: targetId, isActive: false });
+    } catch {
+      // ignore socket errors
+    }
+
+    return res.json(updated);
+  } catch (err) {
+    console.error("Failed to deactivate user:", err);
+    return res.status(500).json({ error: "Failed to deactivate user" });
   }
 });

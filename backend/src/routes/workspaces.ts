@@ -117,7 +117,7 @@ workspaceRouter.get("/:id", async (req: AuthRequest, res) => {
     const workspace = await prisma.workspace.findUnique({
       where: { id: workspaceId },
       include: {
-        members: { include: { user: { select: { id: true, name: true, email: true, avatar: true } } } },
+        members: { include: { user: { select: { id: true, name: true, email: true, avatar: true, isActive: true, lastSeenAt: true } } } },
         boards: true,
       },
     });

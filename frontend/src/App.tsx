@@ -1,6 +1,7 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback } from "react";
 import { useAuthStore } from "./store/authStore";
 import { api } from "./lib/api";
+import { connectSocket } from "./lib/socket";
 import HomePage from "./pages/HomePage";
 import LoginPage from "./pages/LoginPage";
 import ProjectPortal from "./pages/ProjectPortal";
@@ -11,11 +12,12 @@ import KanbanBoard from "./pages/KanbanBoard";
 import WorkspacePage from "./pages/WorkspacePage";
 import Layout from "./components/Layout";
 import type { NavPage } from "./components/Layout";
+import type { TaskModalTab } from "./components/TaskModal";
 import FeedbackModal from "./components/FeedbackModal";
 import type { Workspace } from "./lib/api";
 
 export default function App() {
-  const { token, user, showFeedbackPrompt, clearFeedbackPrompt } = useAuthStore();
+  const { token, user, logout, showFeedbackPrompt, clearFeedbackPrompt } = useAuthStore();
 
   const isSystemAdmin = user?.systemRole === "ADMIN";
   const [page, setPage] = useState<NavPage>("admin-lobby");
@@ -24,8 +26,18 @@ export default function App() {
   const [selectedWorkspace, setSelectedWorkspace] = useState<Workspace | null>(null);
   const [myWorkspaces, setMyWorkspaces] = useState<Workspace[]>([]);
   const [pendingCount, setPendingCount] = useState(0);
+  const [pendingHandoffsCount, setPendingHandoffsCount] = useState(0);
+  const [deepLinkTask, setDeepLinkTask] = useState<{ taskId: string; tab?: TaskModalTab } | null>(null);
   // Show login form (overlaid on home page) when user clicks Sign In
   const [showLogin, setShowLogin] = useState(false);
+
+  const loadPendingHandoffs = useCallback(() => {
+    if (!token) return;
+    api.handoffs
+      .listPending()
+      .then((list) => setPendingHandoffsCount(list.length))
+      .catch(() => {});
+  }, [token]);
 
   // Sync user's workspaces on login & set initial lobby based on systemRole
   useEffect(() => {
@@ -36,7 +48,27 @@ export default function App() {
       .list()
       .then(setMyWorkspaces)
       .catch(() => setMyWorkspaces([]));
-  }, [token, user]);
+    loadPendingHandoffs();
+  }, [token, user, loadPendingHandoffs]);
+
+  // Real-time notifications for handoffs & forced account deactivation
+  useEffect(() => {
+    if (!token || !user) return;
+    const socket = connectSocket();
+    const refreshHandoffs = () => loadPendingHandoffs();
+    const onDeactivated = () => {
+      alert("Your account has been deactivated by an administrator.");
+      logout();
+    };
+    socket.on("handoff_created", refreshHandoffs);
+    socket.on("handoff_acknowledged", refreshHandoffs);
+    socket.on("account_deactivated", onDeactivated);
+    return () => {
+      socket.off("handoff_created", refreshHandoffs);
+      socket.off("handoff_acknowledged", refreshHandoffs);
+      socket.off("account_deactivated", onDeactivated);
+    };
+  }, [token, user, loadPendingHandoffs, logout]);
 
   if (!token || !user) {
     return (
@@ -91,11 +123,14 @@ export default function App() {
     boardId: string,
     workspaceId: string,
     boardName = "Kanban Board",
-    workspaceObj?: Workspace
+    workspaceObj?: Workspace,
+    taskId?: string,
+    initialTab?: TaskModalTab
   ) => {
     const ws = workspaceObj || myWorkspaces.find((w) => w.id === workspaceId) || selectedWorkspace;
     if (ws) setSelectedWorkspace(ws);
     setSelectedBoard({ id: boardId, name: boardName, workspaceId });
+    setDeepLinkTask(taskId ? { taskId, tab: initialTab } : null);
     setMemberPortalActive(false);
     setPage("board");
   };
@@ -148,11 +183,14 @@ export default function App() {
       boardName={selectedBoard && page === "board" ? selectedBoard.name : undefined}
       workspaceName={selectedWorkspace?.name}
       pendingRequestsCount={pendingCount}
+      pendingHandoffsCount={pendingHandoffsCount}
     >
       {page === "admin-lobby" && isSystemAdmin && (
         <AdminLobby
           onSelectWorkspace={handleSelectWorkspace}
-          onSelectBoard={(bId, wsId, bName, wsObj) => handleSelectBoard(bId, wsId, bName || "Board", wsObj)}
+          onSelectBoard={(bId, wsId, bName, wsObj, taskId, tabName) =>
+            handleSelectBoard(bId, wsId, bName || "Board", wsObj, taskId, tabName)
+          }
           onPendingCountChange={setPendingCount}
         />
       )}
@@ -160,7 +198,9 @@ export default function App() {
       {page === "member-lobby" && (
         <MemberLobby
           onSelectWorkspace={handleSelectWorkspace}
-          onSelectBoard={(bId, wsId, bName, wsObj) => handleSelectBoard(bId, wsId, bName || "Board", wsObj)}
+          onSelectBoard={(bId, wsId, bName, wsObj, taskId, tabName) =>
+            handleSelectBoard(bId, wsId, bName || "Board", wsObj, taskId, tabName)
+          }
         />
       )}
 
@@ -191,6 +231,9 @@ export default function App() {
         <KanbanBoard
           boardId={selectedBoard.id}
           workspaceId={selectedBoard.workspaceId}
+          initialTaskId={deepLinkTask?.taskId}
+          initialTaskTab={deepLinkTask?.tab}
+          onInitialTaskConsumed={() => setDeepLinkTask(null)}
           onManageWorkspace={() => {
             if (selectedWorkspace) setPage("workspace-detail");
           }}

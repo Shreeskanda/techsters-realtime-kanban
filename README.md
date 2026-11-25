@@ -1,264 +1,182 @@
-# TechSters – Collaborative Kanban
+# TechSters – Context-Aware Collaborative Kanban (v2.0)
 
 [![Hackathon](https://img.shields.io/badge/AVISHKAR'26-24hr_Hackathon-blue.svg)](https://avishkar.dev)
 [![Team](https://img.shields.io/badge/Team-TechSters-indigo.svg)](https://github.com)
 [![Team ID](https://img.shields.io/badge/Team_ID-AV26--00734FF57E-success.svg)](https://github.com)
 [![License](https://img.shields.io/badge/License-MIT-green.svg)](LICENSE)
 
-> **Real-Time Collaborative Kanban Board with Role-Based Access Control**  
-> Inspired by Jira's professional workflow and dashboard experience, engineered for high-performance team productivity during **AVISHKAR'26**.
+> **Context-Aware Real-Time Collaborative Kanban Platform with Role-Based Access Control**  
+> Built for **AVISHKAR'26** by Team **TechSters** (`AV26-00734FF57E`). Preserves the reasoning behind work, enables private blocker signaling, structures task handoffs, monitors member activation, and computes deterministic project health telemetry.
 
 ---
 
 ## 1. Project Overview & Identity
 
-- **Project Name:** TechSters – Collaborative Kanban
-- **Problem Statement:** Real-Time Collaborative Kanban Board with Role Permissions
-- **Domain:** Full-Stack Web & Application Development
+- **Project Name:** TechSters – Context-Aware Collaborative Kanban
+- **Problem Statement:** Real-Time Collaborative Kanban Board with Role Permissions & Context Continuity
 - **Hackathon:** AVISHKAR'26 (24-Hour Hackathon)
 - **Team Name:** TechSters
 - **Team ID:** `AV26-00734FF57E`
-- **Reference Product:** Atlassian Jira (UX workflow & dashboard paradigm; lightweight, modern dark execution)
 
 ---
 
-## 2. Key Features
+## 2. Core & TechSters 2.0 Signature Capabilities
 
-- **🔐 Robust Authentication & JWT:** Secure registration and login with bcrypt 12-round password hashing and stateless JWT bearer tokens.
-- **🏢 Multi-Workspace Support:** Users can create workspaces, manage memberships, and switch seamlessly between organization contexts.
-- **🛡️ Strict Role-Based Access Control (RBAC):** Three distinct roles (`ADMIN`, `MEMBER`, `VIEWER`) enforced strictly at the database and API route layer, not just hidden in the UI.
-- **📋 Interactive Kanban Boards:** Drag-and-drop task progression across customizable columns (`TO DO`, `IN PROGRESS`, `DONE`).
-- **⚡ Live Real-Time Collaboration:** Socket.IO workspace rooms synchronize task creation, column movements, status updates, comments, and member actions instantly across all connected browsers without page reloads.
-- **💬 Task Collaboration & Comments:** Deep task modal with description, priority levels, assignees, due dates, customizable tags, and threaded discussion comments.
-- **📜 Comprehensive Activity Logging:** Every creation, status shift, assignment, and comment is automatically recorded with actor attribution and timestamps.
-- **📥 One-Click CSV Export:** Export complete workspace board data with task attributes, statuses, and assignees directly to CSV format.
-- **🌙 Jira-Inspired Dark Dashboard:** Professional charcoal-and-navy aesthetic with high information density, smooth micro-interactions, and accessible typography.
+### A. Task Memory Capsule
+Every task stores an append-only chronological engineering capsule inside its **Memory** tab (never overwriting prior notes):
+- Original problem or reason for creating the task
+- Expected outcome & acceptance vision
+- Work already completed
+- Approaches attempted
+- Technical decisions made
+- Outstanding questions
+- Next recommended action
+- Supporting links and references
+- Full author + timestamp attribution & Context Handoff Preview on ownership transfer
+
+### B. Silent Blocker Radar
+Structured, privacy-aware blocker reporting directly from tasks and surfaced in dashboard widgets:
+- Selectable blocker types: *I am stuck*, *I need technical assistance*, *I am waiting for another person*, *Requirements are unclear*, *I need additional resources*
+- Severity levels (`LOW`, `MEDIUM`, `HIGH`, `CRITICAL`) and live elapsed unresolved duration (`⏱ Open Xh Ym`)
+- Server-enforced privacy modes:
+  - `REPORTER_AND_ADMINS` (Silent: only reporter & workspace admins see the blocker)
+  - `PRIVATE_ADMINS` (Protected: status visible to team; explanation visible only to reporter & workspace admins)
+  - `TEAM` (Visible to all authorized workspace members)
+- Resolution workflow for reporters and acknowledgment/management for workspace admins
+
+### C. Auto Handoff Mode
+Meaningful structured task transfers between authorized workspace members:
+- Captures what has been completed, remaining work, problems encountered, technical decisions, recommended first step, and important links/files
+- Permanent chronological handoff timeline linked to the task
+- Direct access to the Task Memory Capsule inside each handoff record
+- Real-time notifications (`handoff_created`, `handoff_acknowledged`), unread handoff badges, and explicit receiver acknowledgment
+
+### D. Project Health Pulse
+Transparent, non-punitive, deterministic health analysis computed directly from PostgreSQL records (zero hardcoded scores, no external AI dependencies):
+- Overall Health Score (`0–100` across `HEALTHY`, `AT_RISK`, `CRITICAL`) with snapshot delta
+- Risk indicators: Overdue tasks, Unresolved blockers by severity, Stale tasks (`>5d` no update), Tasks waiting for review, Tasks exceeding `expectedHours`, Completed vs Pending progress
+- Plain-language warning explanations for every deduction
+- Weekly progress summary, task aging metrics, and historical health snapshot trends
+
+### E. Member & User Activation Status (Admin Lobby)
+- Admin Lobby displays live account activation (`Activated` / `Deactivated`), session presence (`Online Now`, `Recently Active`, `Offline`, `Never Logged In`), `lastLoginAt`, and `lastSeenAt`
+- Admins can activate or deactivate accounts server-side (deactivated users cannot log in and active tokens/sockets are immediately revoked)
+
+### F. Foundational Kanban & RBAC Features Preserved
+- **Role-Based Access Control:** Workspace-scoped `ADMIN`, `MEMBER`, and `VIEWER` enforced server-side (VIEWER receives `403` on task, memory, blocker, handoff, or comment mutations)
+- **Interactive Kanban Board:** Drag-and-drop progression, custom columns, filters, badges for active blockers / unread handoffs / memory counts, and inline Health Pulse drawer
+- **Unified Task Activity Tab:** Chronological stream merging status changes, comments, Task Memory Capsule entries, visible blockers, handoffs, and acknowledgments
+- **Multi-Project Portal, Join Requests, Project Feedback & CSV Export**
 
 ---
 
 ## 3. Role-Based Access Control (RBAC) Matrix
 
-Every API mutation strictly verifies the authenticated user's workspace role:
-
 | Capability | ADMIN | MEMBER | VIEWER |
 | :--- | :---: | :---: | :---: |
-| Create & manage workspaces | ✅ | ❌ | ❌ |
-| Invite & remove workspace members | ✅ | ❌ | ❌ |
-| Create boards & custom columns | ✅ | ✅ | ❌ |
-| Create new tasks | ✅ | ✅ | ❌ (403) |
-| Edit task details | ✅ | ✅ | ❌ (403) |
-| Drag & move task across columns | ✅ | ✅ | ❌ (403) |
+| Manage workspace members & roles | ✅ | ❌ (403) | ❌ (403) |
+| Manage account activation (`/admin/users`) | ✅ (Sys Admin) | ❌ (403) | ❌ (403) |
+| Create/edit/move tasks & add comments | ✅ | ✅ | ❌ (403) |
 | Delete tasks | ✅ | ❌ (403) | ❌ (403) |
-| Add comments | ✅ | ✅ | ❌ (403) |
-| View boards, tasks, & activity | ✅ | ✅ | ✅ |
-| Export tasks to CSV | ✅ | ✅ | ❌ (403) |
+| Append Task Memory Capsule entries | ✅ | ✅ | ❌ (403) |
+| Report & resolve own blockers | ✅ | ✅ | ❌ (403) |
+| Acknowledge & view private workspace blockers | ✅ | Reporter only | ❌ (Redacted) |
+| Create handoffs / acknowledge own handoffs | ✅ | ✅ | ❌ (403) |
+| Capture manual health snapshots | ✅ | ❌ (403) | ❌ (403) |
+| View boards, permitted context, & CSV export | ✅ | ✅ (No CSV if Viewer) | Read-only (no CSV) |
 
 ---
 
 ## 4. Architecture & Tech Stack
 
-```mermaid
-flowchart TD
-    subgraph Client ["Frontend (React 19 + TypeScript + Vite)"]
-        UI["Dark Kanban UI (Tailwind CSS)"]
-        Store["Auth Store (Zustand)"]
-        SocketClient["Socket.IO Client"]
-    end
-
-    subgraph Server ["Backend (Node.js + Express + TypeScript)"]
-        AuthMiddleware["JWT & RBAC Middleware"]
-        REST["REST API Endpoints"]
-        SocketServer["Socket.IO Room Manager"]
-    end
-
-    subgraph Persistence ["Database Layer"]
-        Prisma["Prisma ORM (v5)"]
-        Postgres[("PostgreSQL 18")]
-    end
-
-    UI -->|REST Requests| REST
-    REST --> AuthMiddleware
-    AuthMiddleware --> Prisma
-    Prisma --> Postgres
-    SocketClient <-->|Bi-directional Events| SocketServer
-    REST -.->|Broadcast on Mutation| SocketServer
-```
-
-- **Frontend:** React 19, TypeScript, Vite, Tailwind CSS v4, Zustand, Socket.IO Client.
-- **Backend:** Node.js, Express, TypeScript, Zod (validation), JWT, BcryptJS, Socket.IO.
-- **Database:** PostgreSQL, Prisma ORM (migrations + seed script).
-- **DevOps:** Docker, Docker Compose, Git branching workflow.
+- **Frontend:** React 19, TypeScript, Vite, Tailwind CSS v4, Zustand, Socket.IO Client
+- **Backend:** Node.js, Express, TypeScript, Zod, JWT, BcryptJS, Socket.IO
+- **Database:** PostgreSQL, Prisma ORM (`backend/prisma/schema.prisma` + `backend/prisma/migrations`)
+- **Deployment:** Vercel monorepo Services (`vercel.json`)
 
 ---
 
-## 5. Team Ownership & Git Contribution Structure
+## 5. Database Models (Prisma)
 
-In compliance with hackathon regulations, the project follows strict module boundaries across four independent team contributions:
+Core models: `User` (with `isActive`, `lastLoginAt`, `lastSeenAt`), `Workspace`, `WorkspaceMember`, `Board`, `Column`, `Task` (with `expectedHours`), `Comment`, `ActivityLog`, `JoinRequest`, `ProjectFeedback`.
 
-| Person | Team Member | GitHub Account | Branch | Ownership & Module Boundaries |
-| :---: | :--- | :--- | :--- | :--- |
-| **1** | Sinchana Kumar | `sinchanakumar20@gmail.com` | `feature/backend` | Express REST server, JWT Auth, RBAC middleware, validation schemas, Task/Board/Workspace route handlers |
-| **2** | Ranjini | `ranjnuranjini263@gmail.com` | `feature/frontend` | React UI, Tailwind dark theme, Kanban drag-and-drop, modals, team view, responsive design |
-| **3** | Shreeskanda | `nshreeskanda@gmail.com` | `feature/database` | PostgreSQL architecture, Prisma ORM schema, migrations, relational models, seed dataset |
-| **4** | Shreyas Vani Mohan | `shreyasvanimohan@gmail.com` | `feature/integration` | Socket.IO room sync, API integration, CSV exporter, Docker orchestration, E2E test suite |
-
-### Branching Strategy
-```
-main (stable release)
-  └── develop (staging integration)
-        ├── feature/backend     (Person 1)
-        ├── feature/frontend    (Person 2)
-        ├── feature/database    (Person 3)
-        └── feature/integration (Person 4)
-```
+TechSters 2.0 models:
+- **`TaskMemoryEntry`**: `originalProblem`, `expectedOutcome`, `workCompleted`, `approachesAttempted`, `technicalDecisions`, `outstandingQuestions`, `nextRecommendedAction`, `supportingLinks`, `taskId`, `workspaceId`, `authorId`, `createdAt`
+- **`TaskBlocker`**: `type`, `severity`, `privacy`, `status`, `explanation`, `resolutionNote`, `acknowledgedAt`, `resolvedAt`, `taskId`, `workspaceId`, `reporterId`, `acknowledgedById`, `resolvedById`
+- **`TaskHandoff`**: `completedSummary`, `remainingWork`, `problemsEncountered`, `technicalDecisions`, `firstStepRecommended`, `importantLinks`, `taskId`, `workspaceId`, `fromUserId`, `toUserId`, `createdAt`
+- **`TaskHandoffAcknowledgment`**: `handoffId` (unique), `userId`, `note`, `acknowledgedAt`
+- **`ProjectHealthSnapshot`**: `score`, `overdueCount`, `unresolvedBlockers`, `staleTasksCount`, `reviewWaitingCount`, `exceededTimeCount`, `completedTasks`, `pendingTasks`, `warnings`, `workspaceId`, `createdAt`
 
 ---
 
-## 6. Database Schema (Prisma)
+## 6. Key API Endpoints
 
-- **`User`**: `id`, `email`, `name`, `password`, `avatar`, `systemRole` (`ADMIN` | `MEMBER`), `createdAt`, `updatedAt`
-- **`Workspace`**: `id`, `name`, `description`, `slug`, `createdAt`, `updatedAt`
-- **`WorkspaceMember`**: `id`, `role` (`ADMIN` | `MEMBER` | `VIEWER`), `userId`, `workspaceId`, `joinedAt`
-- **`Board`**: `id`, `name`, `description`, `workspaceId`, `createdAt`, `updatedAt`
-- **`Column`**: `id`, `name`, `position`, `boardId`
-- **`Task`**: `id`, `title`, `description`, `priority` (`LOW` | `MEDIUM` | `HIGH` | `URGENT`), `position`, `dueDate`, `labels`, `columnId`, `assigneeId`, `creatorId`, `createdAt`, `updatedAt`
-- **`Comment`**: `id`, `content`, `taskId`, `authorId`, `createdAt`, `updatedAt`
-- **`ActivityLog`**: `id`, `action`, `details`, `userId`, `workspaceId`, `taskId`, `createdAt`
-- **`JoinRequest`**: `id`, `status` (`PENDING` | `APPROVED` | `REJECTED`), `message`, `userId`, `workspaceId`, `createdAt`, `updatedAt`
-- **`ProjectFeedback`**: `id`, `rating` (1–5), `category`, `message`, `userId`, `workspaceId`, `createdAt`
+### Auth & Admin Activation
+- `POST /api/auth/check-email`, `POST /api/auth/register`, `POST /api/auth/login`, `GET /api/auth/me`
+- `GET /api/admin/stats` – Platform stats, pending requests, blocker/handoff counts & activation counts
+- `GET /api/admin/users` – All registered users with activation & online presence status (System `ADMIN`)
+- `PATCH /api/admin/users/:id/activate` | `/deactivate` – Toggle account activation (System `ADMIN`)
 
----
+### Task Memory Capsule
+- `GET /api/tasks/:taskId/memory` – Chronological memory entries
+- `POST /api/tasks/:taskId/memory` – Append memory capsule entry (`ADMIN`/`MEMBER`)
+- `GET /api/memories/recent` – Recent memory entries across authorized workspaces
 
-## 7. API Reference
+### Silent Blocker Radar
+- `GET /api/tasks/:taskId/blockers` – Privacy-filtered blockers for a task
+- `GET /api/workspaces/:workspaceId/blockers` – Privacy-filtered blockers for a workspace
+- `GET /api/blockers/active` – Unresolved blockers across user's workspaces
+- `POST /api/tasks/:taskId/blockers` – Report blocker (`ADMIN`/`MEMBER`)
+- `PATCH /api/blockers/:id` – Acknowledge (`ADMIN`) or resolve (`ADMIN`/reporter) blocker
 
-### Authentication
-- `POST /api/auth/check-email` – Smart email-first detection (returns `{ exists, name? }`)
-- `POST /api/auth/register` – Register new account (first-time setup)
-- `POST /api/auth/login` – Login with password & receive JWT
-- `GET /api/auth/me` – Current authenticated user profile
+### Auto Handoff Mode
+- `GET /api/tasks/:taskId/handoffs` – Chronological handoff records for a task
+- `GET /api/handoffs/pending` – Unacknowledged handoffs assigned to current user
+- `GET /api/workspaces/:workspaceId/handoffs` – Workspace handoff history
+- `POST /api/tasks/:taskId/handoffs` – Transfer task to authorized workspace member
+- `POST /api/handoffs/:id/acknowledge` – Receiver acknowledges handoff
 
-### Workspaces & Admin Portal
-- `GET /api/workspaces` – List user's authorized workspaces
-- `GET /api/workspaces/public` – List organization projects for Member 2nd-step Portal
-- `POST /api/workspaces` – Create project workspace (System `ADMIN` only)
-- `GET /api/workspaces/:id` – Fetch workspace details & members
-- `POST /api/workspaces/:id/members` – Invite member (`ADMIN` only)
-- `PATCH /api/workspaces/:id/members/:userId` – Assign/update member role (`ADMIN` only)
-- `DELETE /api/workspaces/:id/members/:userId` – Remove member (`ADMIN` only)
-- `GET /api/workspaces/:id/activity` – Workspace activity history
-- `GET /api/workspaces/:id/export` – Export workspace tasks to CSV
-- `GET /api/admin/stats` – Admin lobby KPIs, join requests, audit log history & feedback insights
-
-### Join Requests & Project Feedback
-- `POST /api/join-requests/:workspaceId` – Request access to uninvited project
-- `GET /api/join-requests/my/status` – Member checks join request status
-- `GET /api/join-requests/:workspaceId` – Workspace pending join requests (`ADMIN` only)
-- `PATCH /api/join-requests/:id` – Approve or decline join request (`ADMIN` only)
-- `POST /api/feedback` – Submit project rating & feedback
-- `GET /api/feedback` – View submitted project feedback (`ADMIN` only)
-
-### Boards & Columns
-- `POST /api/boards` – Create new board
-- `GET /api/boards/:id` – Fetch board with columns, tasks, assignees & comment counts
-- `POST /api/boards/:id/columns` – Add custom column (`ADMIN`/`MEMBER`)
-- `PATCH /api/columns/:id` – Rename/reorder column
-
-### Tasks
-- `GET /api/tasks?workspaceId=` – List workspace tasks
-- `POST /api/tasks` – Create new task (`ADMIN`/`MEMBER`)
-- `PATCH /api/tasks/:id` – Update / move task (`ADMIN`/`MEMBER`)
-- `DELETE /api/tasks/:id` – Delete task (`ADMIN` only)
-- `GET /api/tasks/:id/comments` – Fetch comments for task
-- `POST /api/tasks/:id/comments` – Add comment (`ADMIN`/`MEMBER`)
+### Project Health Pulse & Unified Timeline
+- `GET /api/workspaces/:workspaceId/health` – Deterministic health score, warnings, aging & weekly summary
+- `GET /api/workspaces/:workspaceId/health/history` – Historical health snapshots
+- `POST /api/workspaces/:workspaceId/health/snapshot` – Capture snapshot (`ADMIN`)
+- `GET /api/tasks/:id/timeline` – Unified chronological task history
 
 ---
 
-## 8. Real-Time Socket.IO Events
+## 7. Real-Time Socket.IO Events
 
-| Event | Direction | Payload | Description |
-| :--- | :--- | :--- | :--- |
-| `join_workspace` | Client → Server | `{ workspaceId }` | Validates membership & joins isolated room |
-| `task_created` | Server → Room | `{ task, workspaceId }` | Broadcasts new card in real time |
-| `task_moved` | Server → Room | `{ task, workspaceId }` | Broadcasts column drop / position shift |
-| `task_updated` | Server → Room | `{ task, workspaceId }` | Broadcasts title, tag, or priority changes |
-| `task_deleted` | Server → Room | `{ taskId, workspaceId }` | Removes deleted card across all clients |
-| `new_comment` | Server → Room | `{ comment, taskId }` | Appends comment to open card in real time |
-| `member_added` | Server → Room | `{ member }` | Live update of workspace roster |
+| Event | Direction | Description |
+| :--- | :--- | :--- |
+| `join_workspace` / `join_admin_lobby` | Client → Server | Verifies membership/admin status and joins scoped rooms |
+| `task_created` / `task_moved` / `task_updated` / `task_deleted` | Server → Room | Live Kanban board card updates |
+| `new_comment` | Server → Room | Appends comment live |
+| `task_memory_updated` | Server → Room | Syncs new Task Memory Capsule entries |
+| `blocker_created` / `blocker_updated` / `blocker_resolved` | Server → Authorized Recipients | Emitted to workspace for `TEAM` or strictly to admin + reporter user rooms for private blockers |
+| `handoff_created` / `handoff_acknowledged` | Server → Room & Receiver | Updates pending handoff badges and task context |
+| `project_health_updated` | Server → Room | Live Project Health Pulse recalculations |
+| `user_presence_changed` / `user_status_changed` | Server → Admin Lobby | Updates live online/activation status |
 
 ---
 
-## 9. Quick Start Guide
+## 8. Quick Start & Migrations
 
-### Prerequisites
-- Node.js >= 18
-- PostgreSQL >= 14 (or run via Docker)
-
-### 1. Clone & Configure Environment
 ```bash
-git clone https://github.com/Shreeskanda/techsters-realtime-kanban.git
-cd techsters-realtime-kanban
-
-# Backend environment setup
-cp .env.example backend/.env
-# Edit backend/.env with your DATABASE_URL, PORT (5000), and JWT_SECRET
-```
-
-### 2. Database Migration & Seeding
-```bash
+# Backend setup & migrations
 cd backend
 npm install
 npx prisma generate
-npx prisma migrate dev --name init
-npm run prisma:seed
-```
-
-Demo Seed Users:
-- **Admin:** `alice@techsters.dev` / `password123`
-- **Member:** `bob@techsters.dev` / `password123`
-- **Viewer:** `carol@techsters.dev` / `password123`
-
-### 3. Run Applications
-
-**Start Backend:**
-```bash
-cd backend
+npx prisma migrate deploy
 npm run dev
-# Server listening on http://localhost:5000
-```
 
-**Start Frontend:**
-```bash
-cd frontend
+# Frontend setup
+cd ../frontend
 npm install
 npm run dev
-# Frontend running on http://localhost:5173
 ```
 
-### 4. Run Automated E2E Test Suite
+### Verification Commands
 ```bash
-cd backend
-npm test
-# Runs 16 automated assertions verifying Auth, RBAC 403s, CRUD, CSV & Activity
+cd backend && npm run typecheck
+cd frontend && npx tsc -b && npm run build
 ```
-
-### 5. Run with Docker Compose
-```bash
-docker-compose up --build
-```
-
----
-
-## 10. Demonstration Verification Checklist
-
-- [x] **Registration & Login:** Tested and operational with JWT tokens.
-- [x] **Database Persistence:** PostgreSQL 18 + Prisma schema with 8 relational models.
-- [x] **Workspace & Board Management:** Dynamic creation with automatic default columns.
-- [x] **Kanban Drag-and-Drop:** Drag tasks between TO DO, IN PROGRESS, and DONE with optimistic UI and persistent database sync.
-- [x] **Role-Based Access Control:**
-  - Admin (Alice): Full control, task creation/deletion, member invitation.
-  - Member (Bob): Task creation, task movement, commenting.
-  - Viewer (Carol): Read-only access; backend rejects mutations with HTTP 403.
-- [x] **Real-Time Collaboration:** Socket.IO authenticated rooms broadcast task creations, column moves, comments, and member updates across open browser tabs.
-- [x] **CSV Export:** Fully downloadable CSV with tasks, priorities, assignees, and dates.
-- [x] **Activity Log:** Comprehensive audit trail for all workspace modifications.
-- [x] **Multi-Account Git History:** Genuine commits from all 4 team accounts on dedicated feature branches, merged through PRs into develop and main.

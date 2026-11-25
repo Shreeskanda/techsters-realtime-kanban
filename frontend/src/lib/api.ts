@@ -1,4 +1,4 @@
-// API Client – TechSters Collaborative Kanban
+// API Client – TechSters Collaborative Kanban (2.0)
 const envApiUrl = import.meta.env.VITE_API_URL;
 const BASE = import.meta.env.PROD
   ? envApiUrl && !envApiUrl.includes("localhost")
@@ -28,7 +28,7 @@ async function request<T>(path: string, options: RequestInit = {}): Promise<T> {
 export const api = {
   auth: {
     checkEmail: (email: string) =>
-      request<{ exists: boolean; name?: string }>("/auth/check-email", {
+      request<{ exists: boolean; name?: string; isActive?: boolean }>("/auth/check-email", {
         method: "POST",
         body: JSON.stringify({ email }),
       }),
@@ -89,12 +89,110 @@ export const api = {
     list: (workspaceId: string) => request<Task[]>(`/tasks?workspaceId=${workspaceId}`),
     create: (data: Partial<Task> & { columnId: string; workspaceId: string }) =>
       request<Task>("/tasks", { method: "POST", body: JSON.stringify(data) }),
-    update: (id: string, data: Partial<Task> & { workspaceId?: string }) =>
+    update: (
+      id: string,
+      data: Omit<Partial<Task>, "dueDate" | "assigneeId" | "expectedHours"> & {
+        workspaceId?: string;
+        dueDate?: string | null;
+        assigneeId?: string | null;
+        expectedHours?: number | null;
+      }
+    ) =>
       request<Task>(`/tasks/${id}`, { method: "PATCH", body: JSON.stringify(data) }),
     delete: (id: string) => request(`/tasks/${id}`, { method: "DELETE" }),
     getComments: (id: string) => request<Comment[]>(`/tasks/${id}/comments`),
     addComment: (id: string, content: string) =>
       request<Comment>(`/tasks/${id}/comments`, { method: "POST", body: JSON.stringify({ content }) }),
+    getTimeline: (id: string) => request<TaskTimelineItem[]>(`/tasks/${id}/timeline`),
+  },
+  memory: {
+    listForTask: (taskId: string) => request<TaskMemoryEntry[]>(`/tasks/${taskId}/memory`),
+    create: (
+      taskId: string,
+      data: {
+        originalProblem?: string;
+        expectedOutcome?: string;
+        workCompleted?: string;
+        approachesAttempted?: string;
+        technicalDecisions?: string;
+        outstandingQuestions?: string;
+        nextRecommendedAction?: string;
+        supportingLinks?: string[];
+      }
+    ) =>
+      request<TaskMemoryEntry>(`/tasks/${taskId}/memory`, {
+        method: "POST",
+        body: JSON.stringify(data),
+      }),
+    recent: (workspaceId?: string) =>
+      request<TaskMemoryEntry[]>(`/memories/recent${workspaceId ? `?workspaceId=${workspaceId}` : ""}`),
+  },
+  blockers: {
+    listForTask: (taskId: string) => request<TaskBlocker[]>(`/tasks/${taskId}/blockers`),
+    listForWorkspace: (workspaceId: string, includeResolved = false) =>
+      request<TaskBlocker[]>(`/workspaces/${workspaceId}/blockers${includeResolved ? "?includeResolved=true" : ""}`),
+    listActive: () => request<TaskBlocker[]>("/blockers/active"),
+    create: (
+      taskId: string,
+      data: {
+        type: BlockerType;
+        severity: BlockerSeverity;
+        privacy: BlockerPrivacy;
+        explanation?: string;
+      }
+    ) =>
+      request<TaskBlocker>(`/tasks/${taskId}/blockers`, {
+        method: "POST",
+        body: JSON.stringify(data),
+      }),
+    update: (
+      id: string,
+      data: {
+        status?: BlockerStatus;
+        severity?: BlockerSeverity;
+        privacy?: BlockerPrivacy;
+        resolutionNote?: string;
+      }
+    ) =>
+      request<TaskBlocker>(`/blockers/${id}`, {
+        method: "PATCH",
+        body: JSON.stringify(data),
+      }),
+  },
+  handoffs: {
+    listForTask: (taskId: string) => request<TaskHandoff[]>(`/tasks/${taskId}/handoffs`),
+    listForWorkspace: (workspaceId: string) => request<TaskHandoff[]>(`/workspaces/${workspaceId}/handoffs`),
+    listPending: () => request<TaskHandoff[]>("/handoffs/pending"),
+    create: (
+      taskId: string,
+      data: {
+        toUserId: string;
+        completedSummary: string;
+        remainingWork: string;
+        problemsEncountered?: string;
+        technicalDecisions?: string;
+        firstStepRecommended: string;
+        importantLinks?: string[];
+      }
+    ) =>
+      request<TaskHandoff>(`/tasks/${taskId}/handoffs`, {
+        method: "POST",
+        body: JSON.stringify(data),
+      }),
+    acknowledge: (id: string, note?: string) =>
+      request<TaskHandoff>(`/handoffs/${id}/acknowledge`, {
+        method: "POST",
+        body: JSON.stringify({ note }),
+      }),
+  },
+  health: {
+    get: (workspaceId: string) => request<WorkspaceHealthReport>(`/workspaces/${workspaceId}/health`),
+    history: (workspaceId: string, limit = 14) =>
+      request<ProjectHealthSnapshot[]>(`/workspaces/${workspaceId}/health/history?limit=${limit}`),
+    snapshot: (workspaceId: string) =>
+      request<WorkspaceHealthReport>(`/workspaces/${workspaceId}/health/snapshot`, {
+        method: "POST",
+      }),
   },
   joinRequests: {
     submit: (workspaceId: string, message?: string) =>
@@ -118,6 +216,9 @@ export const api = {
   },
   admin: {
     stats: () => request<AdminStats>("/admin/stats"),
+    users: () => request<AdminUserStatus[]>("/admin/users"),
+    activateUser: (id: string) => request<AdminUserStatus>(`/admin/users/${id}/activate`, { method: "PATCH" }),
+    deactivateUser: (id: string) => request<AdminUserStatus>(`/admin/users/${id}/deactivate`, { method: "PATCH" }),
   },
 };
 
@@ -127,6 +228,23 @@ export interface User {
   email: string;
   avatar?: string;
   systemRole?: "ADMIN" | "MEMBER";
+  isActive?: boolean;
+  lastLoginAt?: string;
+  lastSeenAt?: string;
+}
+
+export interface AdminUserStatus {
+  id: string;
+  name: string;
+  email: string;
+  systemRole: "ADMIN" | "MEMBER";
+  isActive: boolean;
+  isOnline: boolean;
+  presenceStatus: "ONLINE" | "RECENTLY_ACTIVE" | "OFFLINE" | "NEVER_LOGGED_IN" | "DEACTIVATED";
+  lastLoginAt?: string | null;
+  lastSeenAt?: string | null;
+  createdAt: string;
+  memberships: { role: "ADMIN" | "MEMBER" | "VIEWER"; workspace: { id: string; name: string } }[];
 }
 
 export interface PublicWorkspace {
@@ -178,13 +296,16 @@ export interface Task {
   priority: "LOW" | "MEDIUM" | "HIGH" | "URGENT";
   position: number;
   dueDate?: string;
+  expectedHours?: number | null;
   labels: string[];
   columnId: string;
   column?: { name: string };
   assigneeId?: string;
   assignee?: User;
   creator: User;
-  _count?: { comments: number };
+  _count?: { comments: number; memoryEntries?: number };
+  openBlockersCount?: number;
+  unreadHandoffsCount?: number;
   createdAt: string;
   updatedAt: string;
 }
@@ -194,6 +315,183 @@ export interface Comment {
   content: string;
   author: User;
   createdAt: string;
+}
+
+export interface TaskMemoryEntry {
+  id: string;
+  originalProblem?: string | null;
+  expectedOutcome?: string | null;
+  workCompleted?: string | null;
+  approachesAttempted?: string | null;
+  technicalDecisions?: string | null;
+  outstandingQuestions?: string | null;
+  nextRecommendedAction?: string | null;
+  supportingLinks: string[];
+  createdAt: string;
+  taskId: string;
+  workspaceId: string;
+  authorId: string;
+  author: User;
+  task?: { id: string; title: string; columnId?: string };
+  workspace?: { id: string; name: string; boards?: { id: string; name: string }[] };
+}
+
+export type BlockerType =
+  | "STUCK"
+  | "TECHNICAL_ASSISTANCE"
+  | "WAITING_FOR_PERSON"
+  | "UNCLEAR_REQUIREMENTS"
+  | "NEEDS_RESOURCES";
+
+export type BlockerSeverity = "LOW" | "MEDIUM" | "HIGH" | "CRITICAL";
+export type BlockerPrivacy = "PRIVATE_ADMINS" | "TEAM" | "REPORTER_AND_ADMINS";
+export type BlockerStatus = "OPEN" | "ACKNOWLEDGED" | "RESOLVED";
+
+export interface TaskBlocker {
+  id: string;
+  type: BlockerType;
+  severity: BlockerSeverity;
+  privacy: BlockerPrivacy;
+  status: BlockerStatus;
+  explanation?: string | null;
+  resolutionNote?: string | null;
+  acknowledgedAt?: string | null;
+  resolvedAt?: string | null;
+  createdAt: string;
+  updatedAt: string;
+  taskId: string;
+  workspaceId: string;
+  reporterId: string;
+  reporter?: { id: string; name: string; email?: string } | null;
+  acknowledgedBy?: { id: string; name: string } | null;
+  resolvedBy?: { id: string; name: string } | null;
+  task?: { id: string; title: string; column?: { name: string; boardId?: string } | null } | null;
+  workspace?: { id: string; name: string } | null;
+  isPrivateRedacted?: boolean;
+  canResolve?: boolean;
+  canAcknowledge?: boolean;
+}
+
+export interface TaskHandoffAcknowledgment {
+  id: string;
+  note?: string | null;
+  acknowledgedAt: string;
+  handoffId: string;
+  userId: string;
+  user: { id: string; name: string; email?: string };
+}
+
+export interface TaskHandoff {
+  id: string;
+  completedSummary: string;
+  remainingWork: string;
+  problemsEncountered?: string | null;
+  technicalDecisions?: string | null;
+  firstStepRecommended: string;
+  importantLinks: string[];
+  createdAt: string;
+  taskId: string;
+  workspaceId: string;
+  fromUserId: string;
+  toUserId: string;
+  fromUser: User;
+  toUser: User;
+  acknowledgment?: TaskHandoffAcknowledgment | null;
+  task?: {
+    id: string;
+    title: string;
+    priority: string;
+    columnId: string;
+    column?: { name: string; boardId?: string };
+    memoryEntries?: TaskMemoryEntry[];
+  };
+  workspace?: {
+    id: string;
+    name: string;
+    boards?: { id: string; name: string }[];
+  };
+}
+
+export interface HealthWarning {
+  code: string;
+  severity: "LOW" | "MEDIUM" | "HIGH" | "CRITICAL";
+  title: string;
+  explanation: string;
+  count: number;
+  penalty: number;
+}
+
+export interface AgingTaskSummary {
+  id: string;
+  title: string;
+  columnName: string;
+  priority: string;
+  ageDays: number;
+  staleDays: number;
+}
+
+export interface WorkspaceHealthReport {
+  workspaceId: string;
+  workspaceName: string;
+  score: number;
+  status: "HEALTHY" | "AT_RISK" | "CRITICAL";
+  deltaFromLastSnapshot: number | null;
+  indicators: {
+    totalTasks: number;
+    completedTasks: number;
+    pendingTasks: number;
+    overdueCount: number;
+    unresolvedBlockers: number;
+    blockersBySeverity: {
+      CRITICAL: number;
+      HIGH: number;
+      MEDIUM: number;
+      LOW: number;
+    };
+    staleTasksCount: number;
+    reviewWaitingCount: number;
+    exceededTimeCount: number;
+  };
+  aging: {
+    avgPendingAgeDays: number;
+    maxPendingAgeDays: number;
+    staleThresholdDays: number;
+    agingTasks: AgingTaskSummary[];
+  };
+  weeklySummary: {
+    tasksCreated: number;
+    tasksCompleted: number;
+    memoriesAdded: number;
+    handoffsCreated: number;
+    blockersResolved: number;
+  };
+  warnings: HealthWarning[];
+  calculatedAt: string;
+}
+
+export interface ProjectHealthSnapshot {
+  id: string;
+  score: number;
+  overdueCount: number;
+  unresolvedBlockers: number;
+  staleTasksCount: number;
+  reviewWaitingCount: number;
+  exceededTimeCount: number;
+  completedTasks: number;
+  pendingTasks: number;
+  warnings: HealthWarning[];
+  createdAt: string;
+  workspaceId: string;
+}
+
+export interface TaskTimelineItem {
+  id: string;
+  kind: "activity" | "comment" | "memory" | "blocker" | "handoff" | "handoff_ack";
+  timestamp: string;
+  actor: { id: string; name: string };
+  title: string;
+  body?: string | null;
+  meta?: Record<string, unknown>;
 }
 
 export interface ActivityLog {
@@ -228,6 +526,9 @@ export interface ProjectFeedback {
 
 export interface AdminStats {
   totalUsers: number;
+  activeUsersCount: number;
+  inactiveUsersCount: number;
+  onlineUsersCount: number;
   totalWorkspaces: number;
   totalTasks: number;
   completedTasks: number;
@@ -239,4 +540,6 @@ export interface AdminStats {
   tasksByPriority: { priority: string; _count: number }[];
   feedbacks: ProjectFeedback[];
   avgRating: number | null;
+  unresolvedBlockersCount: number;
+  pendingHandoffsCount: number;
 }
