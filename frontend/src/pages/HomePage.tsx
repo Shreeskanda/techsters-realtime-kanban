@@ -203,7 +203,7 @@ export default function HomePage({ onGetStarted }: HomePageProps) {
           }}
         >
           <span style={{ width: 7, height: 7, borderRadius: "50%", background: "#3fb950", display: "inline-block" }} />
-          Open Registration · No Credit Card Required
+          Built for teams that move fast
         </div>
 
         <h1
@@ -218,9 +218,9 @@ export default function HomePage({ onGetStarted }: HomePageProps) {
             WebkitTextFillColor: "transparent",
           }}
         >
-          The ERP built for
+          Real-time collaboration,
           <br />
-          modern teams
+          without the complexity
         </h1>
 
         <p
@@ -460,7 +460,7 @@ export default function HomePage({ onGetStarted }: HomePageProps) {
             Create Your Free Account →
           </button>
           <div style={{ fontSize: 12, color: "var(--text-secondary,#8b949e)", marginTop: 14 }}>
-            No credit card · No approval · Start immediately
+            Instant access · No setup required
           </div>
         </div>
       </section>
