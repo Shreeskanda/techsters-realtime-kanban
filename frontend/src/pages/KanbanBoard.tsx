@@ -195,6 +195,9 @@ export default function KanbanBoard({
     socket.on("blocker_created", refreshBoard);
     socket.on("blocker_updated", refreshBoard);
     socket.on("blocker_resolved", refreshBoard);
+    socket.on("blocker_created_meta", refreshBoard);
+    socket.on("blocker_updated_meta", refreshBoard);
+    socket.on("blocker_resolved_meta", refreshBoard);
     socket.on("handoff_created", refreshBoard);
     socket.on("handoff_acknowledged", refreshBoard);
     socket.on("member_added", refreshBoard);
@@ -211,6 +214,9 @@ export default function KanbanBoard({
       socket.off("blocker_created", refreshBoard);
       socket.off("blocker_updated", refreshBoard);
       socket.off("blocker_resolved", refreshBoard);
+      socket.off("blocker_created_meta", refreshBoard);
+      socket.off("blocker_updated_meta", refreshBoard);
+      socket.off("blocker_resolved_meta", refreshBoard);
       socket.off("handoff_created", refreshBoard);
       socket.off("handoff_acknowledged", refreshBoard);
       socket.off("member_added", refreshBoard);

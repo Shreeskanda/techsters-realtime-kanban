@@ -287,6 +287,7 @@ blockerRouter.patch("/blockers/:id", async (req: AuthRequest, res) => {
           type: updated.type,
           status: updated.status,
           severity: updated.severity,
+          privacy: updated.privacy,
         },
       },
     });

@@ -68,6 +68,9 @@ export default function CollaborationWidgets({ workspaces, currentUserId, onOpen
     socket.on("blocker_created", refresh);
     socket.on("blocker_updated", refresh);
     socket.on("blocker_resolved", refresh);
+    socket.on("blocker_created_meta", refresh);
+    socket.on("blocker_updated_meta", refresh);
+    socket.on("blocker_resolved_meta", refresh);
     socket.on("handoff_created", refresh);
     socket.on("handoff_acknowledged", refresh);
     socket.on("task_memory_updated", refresh);
@@ -76,6 +79,9 @@ export default function CollaborationWidgets({ workspaces, currentUserId, onOpen
       socket.off("blocker_created", refresh);
       socket.off("blocker_updated", refresh);
       socket.off("blocker_resolved", refresh);
+      socket.off("blocker_created_meta", refresh);
+      socket.off("blocker_updated_meta", refresh);
+      socket.off("blocker_resolved_meta", refresh);
       socket.off("handoff_created", refresh);
       socket.off("handoff_acknowledged", refresh);
       socket.off("task_memory_updated", refresh);

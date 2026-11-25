@@ -32,17 +32,18 @@ export function setupSocketIO(io: SocketIOServer) {
     }
   });
 
-  io.on("connection", async (socket: AuthSocket) => {
+  io.on("connection", (socket: AuthSocket) => {
     const userId = socket.userId;
     console.log(`🔌 Socket connected: ${socket.id} (user: ${userId})`);
 
     if (userId) {
       socket.join(`user:${userId}`);
       markUserConnected(userId, socket.id);
-      await prisma.user
+      io.to("admin_lobby").emit("user_presence_changed", { userId, isOnline: true });
+      // Update lastSeenAt asynchronously without delaying socket event handler registration
+      void prisma.user
         .update({ where: { id: userId }, data: { lastSeenAt: new Date() } })
         .catch(() => {});
-      io.to("admin_lobby").emit("user_presence_changed", { userId, isOnline: true });
     }
 
     // Join all admin workspace rooms + admin lobby presence channel
@@ -96,10 +97,10 @@ export function setupSocketIO(io: SocketIOServer) {
       console.log(`🔌 Socket disconnected: ${socket.id}`);
       if (userId) {
         markUserDisconnected(userId, socket.id);
+        io.to("admin_lobby").emit("user_presence_changed", { userId, isOnline: false });
         await prisma.user
           .update({ where: { id: userId }, data: { lastSeenAt: new Date() } })
           .catch(() => {});
-        io.to("admin_lobby").emit("user_presence_changed", { userId, isOnline: false });
       }
     });
   });

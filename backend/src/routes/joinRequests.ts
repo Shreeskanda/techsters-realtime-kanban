@@ -61,15 +61,16 @@ joinRouter.post("/:workspaceId", async (req: AuthRequest, res) => {
       },
     });
 
-    // Notify workspace room and all workspace admins directly
-    getIO().to(workspaceId).emit("join_request_received", { request });
+    // Notify workspace room and all workspace admins directly (single deduplicated broadcast)
     const admins = await prisma.workspaceMember.findMany({
       where: { workspaceId, role: "ADMIN" },
       select: { userId: true },
     });
+    let emitter = getIO().to(workspaceId);
     for (const admin of admins) {
-      getIO().to(`user:${admin.userId}`).emit("join_request_received", { request });
+      emitter = emitter.to(`user:${admin.userId}`);
     }
+    emitter.emit("join_request_received", { request });
 
     return res.status(201).json(request);
   } catch (err: any) {
@@ -151,11 +152,7 @@ joinRouter.patch("/:id", async (req: AuthRequest, res) => {
       });
 
       getIO().to(request.workspaceId).emit("member_added", { member: membership });
-      getIO().to(request.workspaceId).emit("join_request_approved", {
-        userId: request.userId,
-        workspaceId: request.workspaceId,
-      });
-      getIO().to(`user:${request.userId}`).emit("join_request_approved", {
+      getIO().to(request.workspaceId).to(`user:${request.userId}`).emit("join_request_approved", {
         userId: request.userId,
         workspaceId: request.workspaceId,
       });

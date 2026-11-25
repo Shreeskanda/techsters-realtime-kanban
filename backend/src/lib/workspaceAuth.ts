@@ -89,6 +89,7 @@ export function filterBlockerForUser<T extends RawBlocker>(
   if (blocker.privacy === "PRIVATE_ADMINS") {
     return {
       ...blocker,
+      reporterId: "private",
       explanation: null,
       resolutionNote: null,
       reporter: { id: "private", name: "Workspace Member (Private)" },

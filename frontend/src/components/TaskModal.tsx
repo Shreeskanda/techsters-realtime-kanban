@@ -593,6 +593,35 @@ export default function TaskModal({
                 </div>
               )}
 
+              {/* Context Handoff Preview when task is assigned to current user with Task Memory */}
+              {task.assigneeId === currentUser?.id && unreadHandoffsForMe.length === 0 && latestMemory && (
+                <div className="alert alert-info" style={{ justifyContent: "space-between", alignItems: "flex-start", flexWrap: "wrap" }}>
+                  <div style={{ flex: 1, minWidth: 240 }}>
+                    <div style={{ fontWeight: 700, fontSize: 13 }}>
+                      ◈ Ownership Context Preview (Assigned to You · Latest Memory by {latestMemory.author.name})
+                    </div>
+                    {latestMemory.originalProblem && (
+                      <div style={{ fontSize: 12, marginTop: 4 }}>
+                        <strong>Reason:</strong> {latestMemory.originalProblem}
+                      </div>
+                    )}
+                    {latestMemory.workCompleted && (
+                      <div style={{ fontSize: 12, marginTop: 2 }}>
+                        <strong>Completed so far:</strong> {latestMemory.workCompleted}
+                      </div>
+                    )}
+                    {latestMemory.nextRecommendedAction && (
+                      <div style={{ fontSize: 12.5, marginTop: 2 }}>
+                        <strong>Next step:</strong> {latestMemory.nextRecommendedAction}
+                      </div>
+                    )}
+                  </div>
+                  <button className="btn btn-secondary btn-sm" onClick={() => setActiveTab("memory")}>
+                    Open Memory Capsule →
+                  </button>
+                </div>
+              )}
+
               {/* Context Handoff Preview when ownership changes during Edit */}
               {assigneeChanged && (
                 <div className="alert alert-warn" style={{ flexDirection: "column", gap: 6 }}>

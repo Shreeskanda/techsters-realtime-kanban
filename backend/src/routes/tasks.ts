@@ -100,6 +100,7 @@ taskRouter.patch("/:id", async (req: AuthRequest, res) => {
     }
 
     const isMoved = data.columnId && data.columnId !== existing.columnId;
+    const isReassigned = data.assigneeId !== undefined && data.assigneeId !== existing.assigneeId;
 
     const task = await prisma.task.update({
       where: { id: taskId },
@@ -114,11 +115,22 @@ taskRouter.patch("/:id", async (req: AuthRequest, res) => {
 
     const action = isMoved ? "task_moved" : "task_updated";
     await prisma.activityLog.create({
-      data: { action, userId: req.userId!, workspaceId, taskId: task.id, details: data as object },
+      data: {
+        action,
+        userId: req.userId!,
+        workspaceId,
+        taskId: task.id,
+        details: {
+          ...(data as object),
+          ...(isReassigned ? { previousAssigneeId: existing.assigneeId } : {}),
+        },
+      },
     });
 
     const event = isMoved ? "task_moved" : "task_updated";
-    getIO().to(workspaceId).emit(event, { task, workspaceId });
+    const io = getIO();
+    const target = isReassigned && data.assigneeId ? io.to(workspaceId).to(`user:${data.assigneeId}`) : io.to(workspaceId);
+    target.emit(event, { task, workspaceId });
     await recordHealthSnapshotAndBroadcast(workspaceId);
     return res.json(task);
   } catch (err: any) {

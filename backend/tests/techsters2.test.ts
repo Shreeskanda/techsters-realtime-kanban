@@ -166,6 +166,46 @@ export async function runTechSters2Tests() {
     "Scenario 2B: Silent blocker privacy hides REPORTER_AND_ADMINS details from Viewer"
   );
 
+  // Verify PRIVATE_ADMINS redacts reporterId & explanation from non-admin/non-reporter
+  const privAdminBlk = await req(`/tasks/${taskId}/blockers`, {
+    method: "POST",
+    token: memberToken,
+    body: {
+      type: "NEEDS_RESOURCES",
+      severity: "LOW",
+      privacy: "PRIVATE_ADMINS",
+      explanation: "Need test device credentials",
+    },
+  });
+  const viewerPrivView = await req(`/tasks/${taskId}/blockers`, { token: viewerToken });
+  const viewerSawPriv = (viewerPrivView.data || []).find((b: any) => b.id === privAdminBlk.data?.id);
+  check(
+    privAdminBlk.status === 201 &&
+      viewerSawPriv &&
+      viewerSawPriv.isPrivateRedacted === true &&
+      viewerSawPriv.reporterId === "private" &&
+      viewerSawPriv.explanation === null,
+    "Scenario 2B2: PRIVATE_ADMINS redacts reporterId and explanation from non-admins"
+  );
+
+  const viewerActivity = await req(`/workspaces/${wsId}/activity`, { token: viewerToken });
+  const leakedPrivateActivity = (viewerActivity.data || []).some(
+    (log: any) => log.action?.startsWith("blocker_") && log.details?.privacy === "REPORTER_AND_ADMINS"
+  );
+  check(
+    viewerActivity.status === 200 && !leakedPrivateActivity,
+    "Scenario 2B3: Workspace activity log omits REPORTER_AND_ADMINS blockers from non-admins"
+  );
+
+  // Clean up auxiliary blocker so health delta check stays exact
+  if (privAdminBlk.data?.id) {
+    await req(`/blockers/${privAdminBlk.data.id}`, {
+      method: "PATCH",
+      token: adminToken,
+      body: { status: "RESOLVED", resolutionNote: "Provided device" },
+    });
+  }
+
   const adminWsBlockers = await req(`/workspaces/${wsId}/blockers`, { token: adminToken });
   check(
     adminWsBlockers.status === 200 &&
@@ -295,7 +335,23 @@ export async function runTechSters2Tests() {
 
 if (require.main === module) {
   runTechSters2Tests()
-    .then(({ failed }) => {
+    .then(async ({ failed, cleanupIds }) => {
+      if (process.env.TEST_CLEANUP !== "false") {
+        try {
+          const { PrismaClient } = await import("@prisma/client");
+          const prisma = new PrismaClient();
+          if (cleanupIds.workspaceId) {
+            await prisma.workspace.deleteMany({ where: { id: cleanupIds.workspaceId } });
+          }
+          if (cleanupIds.userIds.length > 0) {
+            await prisma.user.deleteMany({ where: { id: { in: cleanupIds.userIds } } });
+          }
+          await prisma.$disconnect();
+          console.log("  Cleaned up ephemeral E2E workspace & users.");
+        } catch (cleanupErr) {
+          console.warn("Cleanup skipped:", cleanupErr);
+        }
+      }
       if (failed > 0) process.exit(1);
     })
     .catch((err) => {

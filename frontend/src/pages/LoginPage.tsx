@@ -5,7 +5,7 @@ import { useAuthStore } from "../store/authStore";
 type Step = "email" | "register" | "login";
 type AccountType = "ADMIN" | "MEMBER" | "USER";
 
-export default function LoginPage() {
+export default function LoginPage({ embedded = false }: { embedded?: boolean }) {
   const lastEmail = useAuthStore((s) => s.lastEmail);
   const setAuth = useAuthStore((s) => s.setAuth);
 
@@ -132,11 +132,15 @@ export default function LoginPage() {
 
   return (
     <div
-      className="auth-screen"
-      style={{
-        backgroundImage:
-          "radial-gradient(circle at 18% 20%, rgba(88,166,255,0.08), transparent 45%), radial-gradient(circle at 82% 80%, rgba(188,140,255,0.07), transparent 45%)",
-      }}
+      className={embedded ? "" : "auth-screen"}
+      style={
+        embedded
+          ? undefined
+          : {
+              backgroundImage:
+                "radial-gradient(circle at 18% 20%, rgba(88,166,255,0.08), transparent 45%), radial-gradient(circle at 82% 80%, rgba(188,140,255,0.07), transparent 45%)",
+            }
+      }
     >
       <div className="auth-card">
         <div className="auth-logo">

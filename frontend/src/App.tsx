@@ -44,12 +44,20 @@ export default function App() {
     if (!token || !user) return;
     setMemberPortalActive(false);
     setPage(user.systemRole === "ADMIN" ? "admin-lobby" : "member-lobby");
+    api.auth
+      .me()
+      .catch((err: unknown) => {
+        const msg = err instanceof Error ? err.message.toLowerCase() : "";
+        if (msg.includes("deactivated") || msg.includes("unauthorized")) {
+          logout();
+        }
+      });
     api.workspaces
       .list()
       .then(setMyWorkspaces)
       .catch(() => setMyWorkspaces([]));
     loadPendingHandoffs();
-  }, [token, user, loadPendingHandoffs]);
+  }, [token, user, loadPendingHandoffs, logout]);
 
   // Real-time notifications for handoffs & forced account deactivation
   useEffect(() => {
@@ -111,7 +119,7 @@ export default function App() {
               >
                 ×
               </button>
-              <LoginPage />
+              <LoginPage embedded />
             </div>
           </div>
         )}

@@ -12,7 +12,8 @@
     "prisma:generate": "prisma generate",
     "prisma:migrate": "prisma migrate dev",
     "prisma:seed": "tsx prisma/seed.ts",
-    "test": "tsx tests/api.test.ts"
+    "test": "tsx tests/api.test.ts",
+    "test2": "tsx tests/techsters2.test.ts"
   },
   "dependencies": {
     "@prisma/client": "^5.22.0",

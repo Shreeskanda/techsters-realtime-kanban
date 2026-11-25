@@ -213,13 +213,7 @@ handoffRouter.post("/tasks/:taskId/handoffs", async (req: AuthRequest, res) => {
     try {
       const io = getIO();
       io.to(found.workspaceId).emit("task_updated", { task: updatedTask, workspaceId: found.workspaceId });
-      io.to(found.workspaceId).emit("handoff_created", {
-        handoff,
-        taskId,
-        workspaceId: found.workspaceId,
-        toUserId: parsed.toUserId,
-      });
-      io.to(`user:${parsed.toUserId}`).emit("handoff_created", {
+      io.to(found.workspaceId).to(`user:${parsed.toUserId}`).emit("handoff_created", {
         handoff,
         taskId,
         workspaceId: found.workspaceId,
@@ -300,13 +294,7 @@ handoffRouter.post("/handoffs/:id/acknowledge", async (req: AuthRequest, res) =>
 
     try {
       const io = getIO();
-      io.to(handoff.workspaceId).emit("handoff_acknowledged", {
-        handoff: updated,
-        handoffId,
-        taskId: handoff.taskId,
-        workspaceId: handoff.workspaceId,
-      });
-      io.to(`user:${handoff.fromUserId}`).emit("handoff_acknowledged", {
+      io.to(handoff.workspaceId).to(`user:${handoff.fromUserId}`).emit("handoff_acknowledged", {
         handoff: updated,
         handoffId,
         taskId: handoff.taskId,

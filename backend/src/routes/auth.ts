@@ -3,6 +3,7 @@ import { z } from "zod";
 import bcrypt from "bcryptjs";
 import jwt from "jsonwebtoken";
 import { prisma } from "../lib/prisma";
+import { getIO } from "../lib/io";
 import { authenticate, AuthRequest } from "../middleware/auth";
 
 export const authRouter = Router();
@@ -72,6 +73,12 @@ authRouter.post("/register", async (req, res) => {
       },
     });
 
+    try {
+      getIO().to("admin_lobby").emit("user_status_changed", { userId: user.id, isActive: true });
+    } catch {
+      // ignore if socket not initialized
+    }
+
     return res.status(201).json({ token: signToken(user.id), user });
   } catch (err: any) {
     if (err.name === "ZodError") return res.status(400).json({ error: "Validation error", details: err.errors });
@@ -108,6 +115,12 @@ authRouter.post("/login", async (req, res) => {
         lastSeenAt: true,
       },
     });
+
+    try {
+      getIO().to("admin_lobby").emit("user_status_changed", { userId: user.id, isActive: true });
+    } catch {
+      // ignore if socket not initialized
+    }
 
     return res.json({
       token: signToken(user.id),

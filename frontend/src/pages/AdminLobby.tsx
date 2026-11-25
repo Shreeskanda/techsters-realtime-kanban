@@ -366,7 +366,14 @@ export default function AdminLobby({ onSelectWorkspace, onSelectBoard, onPending
                               <span className={`badge ${pres.badgeClass}`}>{pres.label}</span>
                             </td>
                             <td style={{ fontSize: 12, whiteSpace: "nowrap" }}>
-                              {u.lastLoginAt ? new Date(u.lastLoginAt).toLocaleString() : "Never"}
+                              {u.lastLoginAt
+                                ? new Date(u.lastLoginAt).toLocaleString(undefined, {
+                                    month: "short",
+                                    day: "numeric",
+                                    hour: "2-digit",
+                                    minute: "2-digit",
+                                  })
+                                : "Never"}
                             </td>
                             <td style={{ textAlign: "right" }}>
                               {isSelf ? (

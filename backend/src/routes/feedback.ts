@@ -39,14 +39,15 @@ feedbackRouter.post("/", async (req: AuthRequest, res) => {
       },
     });
 
-    getIO().to(workspaceId).emit("feedback_received", { feedback });
     const admins = await prisma.workspaceMember.findMany({
       where: { workspaceId, role: "ADMIN" },
       select: { userId: true },
     });
+    let emitter = getIO().to(workspaceId);
     for (const admin of admins) {
-      getIO().to(`user:${admin.userId}`).emit("feedback_received", { feedback });
+      emitter = emitter.to(`user:${admin.userId}`);
     }
+    emitter.emit("feedback_received", { feedback });
 
     return res.status(201).json(feedback);
   } catch (err: any) {
