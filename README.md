@@ -116,7 +116,7 @@ main (stable release)
 
 ## 6. Database Schema (Prisma)
 
-- **`User`**: `id`, `email`, `name`, `password`, `avatar`, `createdAt`, `updatedAt`
+- **`User`**: `id`, `email`, `name`, `password`, `avatar`, `systemRole` (`ADMIN` | `MEMBER`), `createdAt`, `updatedAt`
 - **`Workspace`**: `id`, `name`, `description`, `slug`, `createdAt`, `updatedAt`
 - **`WorkspaceMember`**: `id`, `role` (`ADMIN` | `MEMBER` | `VIEWER`), `userId`, `workspaceId`, `joinedAt`
 - **`Board`**: `id`, `name`, `description`, `workspaceId`, `createdAt`, `updatedAt`
@@ -124,24 +124,38 @@ main (stable release)
 - **`Task`**: `id`, `title`, `description`, `priority` (`LOW` | `MEDIUM` | `HIGH` | `URGENT`), `position`, `dueDate`, `labels`, `columnId`, `assigneeId`, `creatorId`, `createdAt`, `updatedAt`
 - **`Comment`**: `id`, `content`, `taskId`, `authorId`, `createdAt`, `updatedAt`
 - **`ActivityLog`**: `id`, `action`, `details`, `userId`, `workspaceId`, `taskId`, `createdAt`
+- **`JoinRequest`**: `id`, `status` (`PENDING` | `APPROVED` | `REJECTED`), `message`, `userId`, `workspaceId`, `createdAt`, `updatedAt`
+- **`ProjectFeedback`**: `id`, `rating` (1–5), `category`, `message`, `userId`, `workspaceId`, `createdAt`
 
 ---
 
 ## 7. API Reference
 
 ### Authentication
-- `POST /api/auth/register` – Register new user
-- `POST /api/auth/login` – Login & receive JWT
+- `POST /api/auth/check-email` – Smart email-first detection (returns `{ exists, name? }`)
+- `POST /api/auth/register` – Register new account (first-time setup)
+- `POST /api/auth/login` – Login with password & receive JWT
 - `GET /api/auth/me` – Current authenticated user profile
 
-### Workspaces
-- `GET /api/workspaces` – List user's workspaces
-- `POST /api/workspaces` – Create workspace (assigns creator as `ADMIN`)
+### Workspaces & Admin Portal
+- `GET /api/workspaces` – List user's authorized workspaces
+- `GET /api/workspaces/public` – List organization projects for Member 2nd-step Portal
+- `POST /api/workspaces` – Create project workspace (System `ADMIN` only)
 - `GET /api/workspaces/:id` – Fetch workspace details & members
 - `POST /api/workspaces/:id/members` – Invite member (`ADMIN` only)
+- `PATCH /api/workspaces/:id/members/:userId` – Assign/update member role (`ADMIN` only)
 - `DELETE /api/workspaces/:id/members/:userId` – Remove member (`ADMIN` only)
 - `GET /api/workspaces/:id/activity` – Workspace activity history
 - `GET /api/workspaces/:id/export` – Export workspace tasks to CSV
+- `GET /api/admin/stats` – Admin lobby KPIs, join requests, audit log history & feedback insights
+
+### Join Requests & Project Feedback
+- `POST /api/join-requests/:workspaceId` – Request access to uninvited project
+- `GET /api/join-requests/my/status` – Member checks join request status
+- `GET /api/join-requests/:workspaceId` – Workspace pending join requests (`ADMIN` only)
+- `PATCH /api/join-requests/:id` – Approve or decline join request (`ADMIN` only)
+- `POST /api/feedback` – Submit project rating & feedback
+- `GET /api/feedback` – View submitted project feedback (`ADMIN` only)
 
 ### Boards & Columns
 - `POST /api/boards` – Create new board
@@ -181,7 +195,7 @@ main (stable release)
 
 ### 1. Clone & Configure Environment
 ```bash
-git clone https://github.com/TechSters/techsters-realtime-kanban.git
+git clone https://github.com/Shreeskanda/techsters-realtime-kanban.git
 cd techsters-realtime-kanban
 
 # Backend environment setup
