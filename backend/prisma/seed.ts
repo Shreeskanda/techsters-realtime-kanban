@@ -11,31 +11,34 @@ async function main() {
 
   const alice = await prisma.user.upsert({
     where: { email: "alice@techsters.dev" },
-    update: {},
+    update: { systemRole: "ADMIN" },
     create: {
       email: "alice@techsters.dev",
       name: "Alice (Admin)",
       password: passwordHash,
+      systemRole: "ADMIN",
     },
   });
 
   const bob = await prisma.user.upsert({
     where: { email: "bob@techsters.dev" },
-    update: {},
+    update: { systemRole: "MEMBER" },
     create: {
       email: "bob@techsters.dev",
       name: "Bob (Member)",
       password: passwordHash,
+      systemRole: "MEMBER",
     },
   });
 
   const carol = await prisma.user.upsert({
     where: { email: "carol@techsters.dev" },
-    update: {},
+    update: { systemRole: "MEMBER" },
     create: {
       email: "carol@techsters.dev",
       name: "Carol (Viewer)",
       password: passwordHash,
+      systemRole: "MEMBER",
     },
   });
 
@@ -169,6 +172,61 @@ async function main() {
       { id: "act-3", action: "task_moved", userId: alice.id, workspaceId: workspace.id, taskId: task1.id, details: { from: "TO DO", to: "DONE" } },
     ],
   });
+
+  // Sample project feedback
+  await prisma.projectFeedback.createMany({
+    skipDuplicates: true,
+    data: [
+      {
+        id: "fb-1",
+        rating: 5,
+        category: "COLLABORATION",
+        message: "Real-time Socket.IO board sync across teammates is super fast and reliable!",
+        userId: bob.id,
+        workspaceId: workspace.id,
+      },
+      {
+        id: "fb-2",
+        rating: 4,
+        category: "UX_DESIGN",
+        message: "Clean dark dashboard layout makes sprint tracking effortless.",
+        userId: carol.id,
+        workspaceId: workspace.id,
+      },
+    ],
+  });
+
+  // Second Admin-only Project for 2nd-portal join request demonstration
+  const alphaProject = await prisma.workspace.upsert({
+    where: { slug: "enterprise-alpha" },
+    update: {},
+    create: {
+      name: "Enterprise Alpha Core",
+      description: "Restricted core engineering workspace (requires Admin approval to join).",
+      slug: "enterprise-alpha",
+    },
+  });
+
+  await prisma.workspaceMember.upsert({
+    where: { userId_workspaceId: { userId: alice.id, workspaceId: alphaProject.id } },
+    update: {},
+    create: { userId: alice.id, workspaceId: alphaProject.id, role: "ADMIN" },
+  });
+
+  const alphaBoard = await prisma.board.upsert({
+    where: { id: "board-alpha-1" },
+    update: {},
+    create: {
+      id: "board-alpha-1",
+      name: "Alpha Architecture Sprint",
+      description: "Core infrastructure tasks",
+      workspaceId: alphaProject.id,
+    },
+  });
+
+  await prisma.column.upsert({ where: { id: "col-alpha-todo" }, update: {}, create: { id: "col-alpha-todo", name: "TO DO", position: 0, boardId: alphaBoard.id } });
+  await prisma.column.upsert({ where: { id: "col-alpha-inprog" }, update: {}, create: { id: "col-alpha-inprog", name: "IN PROGRESS", position: 1, boardId: alphaBoard.id } });
+  await prisma.column.upsert({ where: { id: "col-alpha-done" }, update: {}, create: { id: "col-alpha-done", name: "DONE", position: 2, boardId: alphaBoard.id } });
 
   console.log("✅ Seed complete!");
   console.log(`  Users: alice@techsters.dev, bob@techsters.dev, carol@techsters.dev (all pw: password123)`);
